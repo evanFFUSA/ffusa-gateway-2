@@ -287,10 +287,13 @@ class NMI_Payment_Gateway {
             return;
         }
         
-        // Sanitize input data
+        // Check if this is a recurring payment
+        $payment_type = isset($_POST['payment_type']) ? sanitize_text_field($_POST['payment_type']) : 'one-time';
+        $is_recurring = ($payment_type === 'recurring');
+        
+        // Base payment data
         $payment_data = array(
             'security_key' => $api_key,
-            'type' => 'sale',
             'amount' => sanitize_text_field($_POST['amount']),
             'ccnumber' => preg_replace('/\s+/', '', sanitize_text_field($_POST['ccnumber'])),
             'ccexp' => sanitize_text_field($_POST['ccexp_month']) . sanitize_text_field($_POST['ccexp_year']),
@@ -305,6 +308,18 @@ class NMI_Payment_Gateway {
             'orderid' => 'WP-' . time() . '-' . rand(1000, 9999),
             'orderdescription' => sanitize_text_field($_POST['description'])
         );
+        
+        // Add recurring-specific fields or one-time specific fields
+        if ($is_recurring) {
+            // For recurring payments, use recurring billing API
+            $payment_data['recurring'] = 'add_subscription';
+            $payment_data['plan_payments'] = '0';
+            $payment_data['day_frequency'] = sanitize_text_field($_POST['selected_frequency_days']);
+            $payment_data['plan_amount'] = $payment_data['amount']; // NMI uses plan_amount for recurring
+        } else {
+            // For one-time payments, use standard transaction API
+            $payment_data['type'] = 'sale';
+        }
         
         // NMI API endpoint
         $api_url = $sandbox ? 'https://secure.nmi.com/api/transact.php' : 'https://secure.nmi.com/api/transact.php';
@@ -327,15 +342,33 @@ class NMI_Payment_Gateway {
         // Save transaction to database
         $this->save_transaction($payment_data, $result);
         
-        if (isset($result['response']) && $result['response'] == '1') {
-            wp_send_json_success(array(
-                'message' => 'Payment successful!',
-                'transaction_id' => isset($result['transactionid']) ? $result['transactionid'] : '',
-                'amount' => $payment_data['amount']
-            ));
+        // Handle response based on payment type
+        if ($is_recurring) {
+            // For recurring payments, check for subscription_id
+            if (isset($result['response']) && $result['response'] == '1') {
+                $subscription_id = isset($result['subscription_id']) ? $result['subscription_id'] : '';
+                wp_send_json_success(array(
+                    'message' => 'Recurring payment setup successful!',
+                    'subscription_id' => $subscription_id,
+                    'amount' => $payment_data['amount'],
+                    'frequency' => $_POST['selected_frequency']
+                ));
+            } else {
+                $error_message = isset($result['responsetext']) ? $result['responsetext'] : 'Recurring payment setup failed';
+                wp_send_json_error($error_message);
+            }
         } else {
-            $error_message = isset($result['responsetext']) ? $result['responsetext'] : 'Payment failed';
-            wp_send_json_error($error_message);
+            // For one-time payments, check for transaction_id
+            if (isset($result['response']) && $result['response'] == '1') {
+                wp_send_json_success(array(
+                    'message' => 'Payment successful!',
+                    'transaction_id' => isset($result['transactionid']) ? $result['transactionid'] : '',
+                    'amount' => $payment_data['amount']
+                ));
+            } else {
+                $error_message = isset($result['responsetext']) ? $result['responsetext'] : 'Payment failed';
+                wp_send_json_error($error_message);
+            }
         }
     }
     
