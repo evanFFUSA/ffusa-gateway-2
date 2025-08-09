@@ -27,6 +27,8 @@ class NMI_Payment_Gateway {
         add_action('wp_ajax_process_nmi_payment', array($this, 'process_payment'));
         add_action('wp_ajax_nopriv_process_nmi_payment', array($this, 'process_payment'));
         add_action('wp_ajax_get_transaction_details', array($this, 'get_transaction_details'));
+        add_action('wp_ajax_save_custom_fields', array($this, 'save_custom_fields'));
+        add_action('wp_ajax_nopriv_save_custom_fields', array($this, 'save_custom_fields'));
         add_action('admin_menu', array($this, 'admin_menu'));
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
@@ -35,6 +37,8 @@ class NMI_Payment_Gateway {
     public function init() {
         // Create database table for transactions
         $this->create_transactions_table();
+        // Create database table for custom fields
+        $this->create_custom_fields_table();
     }
     
     public function enqueue_scripts() {
@@ -54,50 +58,107 @@ class NMI_Payment_Gateway {
         $settings = get_option('nmi_payment_settings', array());
         $default_button_text = isset($settings['default_button_text']) ? $settings['default_button_text'] : 'Pay Now';
         $default_description = isset($settings['default_description']) ? $settings['default_description'] : 'Payment';
+        $show_description_field = isset($settings['show_description_field']) ? $settings['show_description_field'] : true;
+        $description_field_label = isset($settings['description_field_label']) ? $settings['description_field_label'] : 'Description';
+        $description_placeholder = isset($settings['description_placeholder']) ? $settings['description_placeholder'] : 'What is this payment for?';
         
         $atts = shortcode_atts(array(
             'amount' => '',
             'description' => $default_description,
-            'button_text' => $default_button_text
+            'button_text' => $default_button_text,
+            'show_description' => $show_description_field ? 'true' : 'false'
         ), $atts);
+        
+        // Convert string to boolean for show_description
+        $show_description = ($atts['show_description'] === 'true' || $atts['show_description'] === '1');
         
         ob_start();
         ?>
         <div class="nmi-payment-form-container">
-            <!-- Step 1: Amount and Description Selection -->
+            <!-- Step 1: Amount and Payment Type Selection -->
             <div id="step-1" class="payment-step active">
                 <h3>Select Your Contribution</h3>
                 
+                <!-- Payment Type Toggle -->
                 <div class="form-group">
-                    <label>Select Amount</label>
-                    <div class="amount-buttons">
-                        <button type="button" class="amount-btn" data-amount="10">$10</button>
-                        <button type="button" class="amount-btn" data-amount="25">$25</button>
-                        <button type="button" class="amount-btn" data-amount="50">$50</button>
-                        <button type="button" class="amount-btn" data-amount="100">$100</button>
+                    <div class="payment-type-tabs">
+                        <button type="button" id="one-time-tab" class="payment-type-tab active">One Time</button>
+                        <button type="button" id="recurring-tab" class="payment-type-tab">Recurring</button>
                     </div>
-                    <div class="other-amount-container">
-                        <button type="button" id="other-amount-btn" class="other-amount-toggle">Other Amount</button>
-                        <div id="custom-amount-input" class="custom-amount-input" style="display: none;">
-                            <label for="step1_amount">Enter Amount ($)</label>
-                            <input type="number" id="step1_amount" step="0.01" min="0.01" 
-                                   value="<?php echo esc_attr($atts['amount']); ?>" 
-                                   <?php echo !empty($atts['amount']) ? 'readonly' : ''; ?>>
-                        </div>
-                    </div>
-                    <input type="hidden" id="selected_amount" name="selected_amount">
                 </div>
                 
+                <!-- One-Time Payment Section -->
+                <div id="one-time-section" class="payment-type-section active">
+                    <div class="form-group">
+                        <label>Select Amount</label>
+                        <div class="amount-buttons">
+                            <button type="button" class="amount-btn" data-amount="10">$10</button>
+                            <button type="button" class="amount-btn" data-amount="25">$25</button>
+                            <button type="button" class="amount-btn" data-amount="50">$50</button>
+                            <button type="button" class="amount-btn" data-amount="100">$100</button>
+                        </div>
+                        <div class="other-amount-container">
+                            <button type="button" id="other-amount-btn" class="other-amount-toggle">Other Amount</button>
+                            <div id="custom-amount-input" class="custom-amount-input" style="display: none;">
+                                <label for="step1_amount">Enter Amount ($)</label>
+                                <input type="number" id="step1_amount" step="0.01" min="0.01" 
+                                       value="<?php echo esc_attr($atts['amount']); ?>" 
+                                       <?php echo !empty($atts['amount']) ? 'readonly' : ''; ?>>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recurring Payment Section -->
+                <div id="recurring-section" class="payment-type-section" style="display: none;">
+                    <div class="form-group">
+                        <label>Select Monthly Amount</label>
+                        <div class="amount-buttons recurring-amounts">
+                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="10">$10</button>
+                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="25">$25</button>
+                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="50">$50</button>
+                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="100">$100</button>
+                        </div>
+                        <div class="other-amount-container">
+                            <button type="button" id="recurring-other-amount-btn" class="other-amount-toggle">Other Amount</button>
+                            <div id="recurring-custom-amount-input" class="custom-amount-input" style="display: none;">
+                                <label for="recurring_step1_amount">Enter Amount ($)</label>
+                                <input type="number" id="recurring_step1_amount" step="0.01" min="0.01">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Billing Frequency</label>
+                        <div class="frequency-buttons">
+                            <button type="button" class="frequency-btn" data-frequency="monthly" data-days="30">Monthly</button>
+                            <button type="button" class="frequency-btn" data-frequency="quarterly" data-days="90">Quarterly</button>
+                            <button type="button" class="frequency-btn" data-frequency="annually" data-days="365">Annually</button>
+                        </div>
+                        <input type="hidden" id="selected_frequency" name="selected_frequency">
+                        <input type="hidden" id="selected_frequency_days" name="selected_frequency_days">
+                    </div>
+                </div>
+                
+                <!-- Hidden fields to track payment type and amount -->
+                <input type="hidden" id="selected_amount" name="selected_amount">
+                <input type="hidden" id="payment_type" name="payment_type" value="one-time">
+                
+                <?php if ($show_description): ?>
                 <div class="form-group">
-                    <label for="step1_description">Description</label>
+                    <label for="step1_description"><?php echo esc_html($description_field_label); ?></label>
                     <input type="text" id="step1_description" 
                            value="<?php echo esc_attr($atts['description']); ?>" 
-                           placeholder="What is this payment for?">
+                           placeholder="<?php echo esc_attr($description_placeholder); ?>">
                 </div>
+                <?php else: ?>
+                <!-- Hidden description field with default value -->
+                <input type="hidden" id="step1_description" value="<?php echo esc_attr($atts['description']); ?>">
+                <?php endif; ?>
                 
                 <div class="form-group">
                     <button type="button" id="give-button" class="nmi-give-button">
-                        Give
+                        <span id="give-button-text">Give</span>
                     </button>
                 </div>
                 
@@ -295,6 +356,15 @@ class NMI_Payment_Gateway {
             'nmi-transactions',
             array($this, 'transactions_page')
         );
+        
+        // Add custom fields page
+        add_management_page(
+            'NMI Custom Fields',
+            'NMI Custom Fields',
+            'manage_options',
+            'nmi-custom-fields',
+            array($this, 'custom_fields_page')
+        );
     }
     
     public function admin_page() {
@@ -304,6 +374,9 @@ class NMI_Payment_Gateway {
                 'sandbox' => isset($_POST['sandbox']),
                 'default_button_text' => sanitize_text_field($_POST['default_button_text']),
                 'default_description' => sanitize_text_field($_POST['default_description']),
+                'show_description_field' => isset($_POST['show_description_field']),
+                'description_field_label' => sanitize_text_field($_POST['description_field_label']),
+                'description_placeholder' => sanitize_text_field($_POST['description_placeholder']),
             );
             update_option('nmi_payment_settings', $settings);
             echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
@@ -350,6 +423,33 @@ class NMI_Payment_Gateway {
                             <p class="description">Default payment description (can be overridden by shortcode)</p>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">Show Description Field</th>
+                        <td>
+                            <input type="checkbox" name="show_description_field" value="1" 
+                                   <?php checked(isset($settings['show_description_field']) ? $settings['show_description_field'] : true); ?>>
+                            <label>Show description field on payment form</label>
+                            <p class="description">Allow users to enter a custom description for their payment</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Description Field Label</th>
+                        <td>
+                            <input type="text" name="description_field_label" 
+                                   value="<?php echo esc_attr(isset($settings['description_field_label']) ? $settings['description_field_label'] : 'Description'); ?>" 
+                                   class="regular-text">
+                            <p class="description">Label text for the description field</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Description Placeholder Text</th>
+                        <td>
+                            <input type="text" name="description_placeholder" 
+                                   value="<?php echo esc_attr(isset($settings['description_placeholder']) ? $settings['description_placeholder'] : 'What is this payment for?'); ?>" 
+                                   class="regular-text">
+                            <p class="description">Placeholder text shown in the description field</p>
+                        </td>
+                    </tr>
                 </table>
                 <?php submit_button(); ?>
             </form>
@@ -361,6 +461,7 @@ class NMI_Payment_Gateway {
                 <li><code>amount</code> - Fixed amount (optional)</li>
                 <li><code>description</code> - Payment description (default: "<?php echo esc_html(isset($settings['default_description']) ? $settings['default_description'] : 'Payment'); ?>")</li>
                 <li><code>button_text</code> - Button text (default: "<?php echo esc_html(isset($settings['default_button_text']) ? $settings['default_button_text'] : 'Pay Now'); ?>")</li>
+                <li><code>show_description</code> - Show/hide description field (default: <?php echo isset($settings['show_description_field']) && $settings['show_description_field'] ? 'true' : 'false'; ?>)</li>
             </ul>
             <p>Example: <code>[nmi_payment_form amount="19.99" description="Product Purchase" button_text="Buy Now"]</code></p>
         </div>
@@ -698,6 +799,262 @@ class NMI_Payment_Gateway {
         wp_send_json_success($content);
     }
     
+    public function save_custom_fields() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nmi_nonce'], 'nmi_payment_nonce')) {
+            wp_die('Security check failed');
+        }
+        
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'nmi_custom_fields';
+        
+        // Generate or get session ID
+        if (!session_id()) {
+            session_start();
+        }
+        $session_id = session_id();
+        
+        // Get custom fields (exclude standard fields)
+        $standard_fields = array('action', 'nmi_nonce', '_wp_http_referer', 'amount', 'description');
+        $custom_fields = array();
+        
+        foreach ($_POST as $key => $value) {
+            if (!in_array($key, $standard_fields) && strpos($key, 'custom_') === 0) {
+                $custom_fields[$key] = sanitize_text_field($value);
+            }
+        }
+        
+        // Save custom fields to database
+        foreach ($custom_fields as $field_name => $field_value) {
+            $wpdb->insert(
+                $table_name,
+                array(
+                    'session_id' => $session_id,
+                    'field_name' => $field_name,
+                    'field_value' => $field_value
+                ),
+                array('%s', '%s', '%s')
+            );
+        }
+        
+        wp_send_json_success(array(
+            'message' => 'Custom fields saved successfully',
+            'session_id' => $session_id
+        ));
+    }
+    
+    public function custom_fields_page() {
+        global $wpdb;
+        
+        $custom_fields_table = $wpdb->prefix . 'nmi_custom_fields';
+        $transactions_table = $wpdb->prefix . 'nmi_transactions';
+        
+        // Handle search and pagination
+        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+        $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
+        $per_page = 20;
+        $offset = ($paged - 1) * $per_page;
+        
+        // Build query to get custom fields with transaction info
+        $where = '';
+        if (!empty($search)) {
+            $where = $wpdb->prepare(
+                " WHERE cf.field_name LIKE %s OR cf.field_value LIKE %s OR t.customer_email LIKE %s OR cf.transaction_id LIKE %s",
+                '%' . $wpdb->esc_like($search) . '%',
+                '%' . $wpdb->esc_like($search) . '%',
+                '%' . $wpdb->esc_like($search) . '%',
+                '%' . $wpdb->esc_like($search) . '%'
+            );
+        }
+        
+        // Get custom fields with transaction data
+        $query = "SELECT cf.*, t.customer_name, t.customer_email, t.amount, t.created_at as transaction_date
+                  FROM $custom_fields_table cf
+                  LEFT JOIN $transactions_table t ON cf.transaction_id = t.transaction_id
+                  $where
+                  ORDER BY cf.created_at DESC
+                  LIMIT $per_page OFFSET $offset";
+        
+        $custom_fields = $wpdb->get_results($query);
+        
+        // Get total count
+        $total_query = "SELECT COUNT(*) FROM $custom_fields_table cf LEFT JOIN $transactions_table t ON cf.transaction_id = t.transaction_id" . $where;
+        $total_items = $wpdb->get_var($total_query);
+        $total_pages = ceil($total_items / $per_page);
+        ?>
+        <div class="wrap">
+            <h1>NMI Custom Fields Data</h1>
+            
+            <!-- Search Form -->
+            <form method="get" style="margin-bottom: 20px;">
+                <input type="hidden" name="page" value="nmi-custom-fields">
+                <p class="search-box">
+                    <input type="search" name="s" value="<?php echo esc_attr($search); ?>" 
+                           placeholder="Search custom fields...">
+                    <input type="submit" class="button" value="Search">
+                    <?php if ($search): ?>
+                        <a href="<?php echo admin_url('tools.php?page=nmi-custom-fields'); ?>" class="button">Clear</a>
+                    <?php endif; ?>
+                </p>
+            </form>
+            
+            <!-- Custom Fields Table -->
+            <table class="wp-list-table widefat fixed striped">
+                <thead>
+                    <tr>
+                        <th>Field Name</th>
+                        <th>Field Value</th>
+                        <th>Transaction ID</th>
+                        <th>Customer</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($custom_fields)): ?>
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 20px;">
+                                <?php echo $search ? 'No custom fields found matching your search.' : 'No custom fields found.'; ?>
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($custom_fields as $field): ?>
+                            <tr>
+                                <td>
+                                    <strong><?php echo esc_html(str_replace('custom_', '', $field->field_name)); ?></strong>
+                                </td>
+                                <td><?php echo esc_html($field->field_value); ?></td>
+                                <td>
+                                    <?php if ($field->transaction_id): ?>
+                                        <code><?php echo esc_html($field->transaction_id); ?></code>
+                                    <?php else: ?>
+                                        <em>No transaction</em>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($field->customer_name): ?>
+                                        <strong><?php echo esc_html($field->customer_name); ?></strong><br>
+                                        <small><?php echo esc_html($field->customer_email); ?></small>
+                                    <?php else: ?>
+                                        <em>No customer data</em>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if ($field->amount): ?>
+                                        $<?php echo number_format($field->amount, 2); ?>
+                                    <?php else: ?>
+                                        <em>N/A</em>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php echo date('M j, Y g:i A', strtotime($field->created_at)); ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+            
+            <!-- Pagination -->
+            <?php if ($total_pages > 1): ?>
+                <div class="tablenav bottom">
+                    <div class="tablenav-pages">
+                        <span class="displaying-num">
+                            <?php echo number_format($total_items); ?> items
+                        </span>
+                        <?php
+                        $page_links = paginate_links(array(
+                            'base' => add_query_arg('paged', '%#%'),
+                            'format' => '',
+                            'prev_text' => '&laquo;',
+                            'next_text' => '&raquo;',
+                            'total' => $total_pages,
+                            'current' => $paged,
+                            'type' => 'array'
+                        ));
+                        
+                        if ($page_links) {
+                            echo '<span class="pagination-links">' . implode('', $page_links) . '</span>';
+                        }
+                        ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <div style="margin-top: 20px;">
+                <h3>Usage Instructions</h3>
+                <p>To add custom fields to your payment form, use the shortcode with custom field parameters:</p>
+                <code>[nmi_payment_form custom_field_1="Field Label 1" custom_field_2="Field Label 2"]</code>
+                <p>Custom fields will appear on the first page of the form and be stored separately from payment data.</p>
+            </div>
+        </div>
+        <?php
+    }
+    
+    private function create_custom_fields_table() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'nmi_custom_fields';
+        
+        $charset_collate = $wpdb->get_charset_collate();
+        
+        $sql = "CREATE TABLE $table_name (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            session_id varchar(100) NOT NULL,
+            transaction_id varchar(100) DEFAULT '',
+            field_name varchar(100) NOT NULL,
+            field_value text,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY session_id (session_id),
+            KEY transaction_id (transaction_id)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql);
+    }
+    
+    private function save_transaction($payment_data, $response_data) {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'nmi_transactions';
+        
+        $transaction_result = $wpdb->insert(
+            $table_name,
+            array(
+                'transaction_id' => isset($response_data['transactionid']) ? $response_data['transactionid'] : '',
+                'order_id' => $payment_data['orderid'],
+                'amount' => $payment_data['amount'],
+                'status' => isset($response_data['response']) ? ($response_data['response'] == '1' ? 'success' : 'failed') : 'failed',
+                'customer_email' => $payment_data['email'],
+                'customer_name' => $payment_data['first_name'] . ' ' . $payment_data['last_name'],
+                'payment_data' => json_encode($payment_data),
+                'response_data' => json_encode($response_data)
+            ),
+            array('%s', '%s', '%f', '%s', '%s', '%s', '%s', '%s')
+        );
+        
+        // Link custom fields to this transaction if session exists
+        if ($transaction_result && !session_id()) {
+            session_start();
+        }
+        
+        if ($transaction_result && session_id()) {
+            $session_id = session_id();
+            $transaction_id = isset($response_data['transactionid']) ? $response_data['transactionid'] : '';
+            
+            // Update custom fields with transaction ID
+            $custom_fields_table = $wpdb->prefix . 'nmi_custom_fields';
+            $wpdb->update(
+                $custom_fields_table,
+                array('transaction_id' => $transaction_id),
+                array('session_id' => $session_id, 'transaction_id' => ''),
+                array('%s'),
+                array('%s', '%s')
+            );
+        }
+    }
+    
     private function create_transactions_table() {
         global $wpdb;
         
@@ -723,29 +1080,9 @@ class NMI_Payment_Gateway {
         dbDelta($sql);
     }
     
-    private function save_transaction($payment_data, $response_data) {
-        global $wpdb;
-        
-        $table_name = $wpdb->prefix . 'nmi_transactions';
-        
-        $wpdb->insert(
-            $table_name,
-            array(
-                'transaction_id' => isset($response_data['transactionid']) ? $response_data['transactionid'] : '',
-                'order_id' => $payment_data['orderid'],
-                'amount' => $payment_data['amount'],
-                'status' => isset($response_data['response']) ? ($response_data['response'] == '1' ? 'success' : 'failed') : 'failed',
-                'customer_email' => $payment_data['email'],
-                'customer_name' => $payment_data['first_name'] . ' ' . $payment_data['last_name'],
-                'payment_data' => json_encode($payment_data),
-                'response_data' => json_encode($response_data)
-            ),
-            array('%s', '%s', '%f', '%s', '%s', '%s', '%s', '%s')
-        );
-    }
-    
     public function activate() {
         $this->create_transactions_table();
+        $this->create_custom_fields_table();
     }
     
     public function deactivate() {

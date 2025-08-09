@@ -1,12 +1,38 @@
 jQuery(document).ready(function($) {
-    // Handle amount button selection
-    $(document).on('click', '.amount-btn', function() {
-        console.log('Amount button clicked:', $(this).data('amount'));
+    // Handle payment type tab switching
+    $('.payment-type-tab').on('click', function() {
+        const tabType = $(this).attr('id');
+        
+        // Remove active class from all tabs
+        $('.payment-type-tab').removeClass('active');
+        $(this).addClass('active');
+        
+        // Hide all sections
+        $('.payment-type-section').removeClass('active').hide();
+        
+        // Show appropriate section and update payment type
+        if (tabType === 'one-time-tab') {
+            $('#one-time-section').addClass('active').show();
+            $('#payment_type').val('one-time');
+            $('#give-button-text').text('Give');
+        } else if (tabType === 'recurring-tab') {
+            $('#recurring-section').addClass('active').show();
+            $('#payment_type').val('recurring');
+            $('#give-button-text').text('Start Recurring Gift');
+        }
+        
+        // Clear selections when switching
+        clearAllSelections();
+    });
+    
+    // Handle one-time amount button selection
+    $(document).on('click', '.amount-btn:not(.recurring-amount-btn)', function() {
+        console.log('One-time amount button clicked:', $(this).data('amount'));
         
         const amount = $(this).data('amount');
         
-        // Remove selected class from all buttons
-        $('.amount-btn').removeClass('selected');
+        // Remove selected class from all one-time amount buttons
+        $('.amount-btn:not(.recurring-amount-btn)').removeClass('selected');
         $('#other-amount-btn').removeClass('active');
         
         // Add selected class to clicked button
@@ -19,15 +45,38 @@ jQuery(document).ready(function($) {
         $('#selected_amount').val(amount);
         $('#step1_amount').val(amount);
         
-        console.log('Selected amount set to:', $('#selected_amount').val());
+        console.log('One-time amount set to:', $('#selected_amount').val());
     });
     
-    // Handle "Other Amount" button
+    // Handle recurring amount button selection
+    $(document).on('click', '.recurring-amount-btn', function() {
+        console.log('Recurring amount button clicked:', $(this).data('amount'));
+        
+        const amount = $(this).data('amount');
+        
+        // Remove selected class from all recurring amount buttons
+        $('.recurring-amount-btn').removeClass('selected');
+        $('#recurring-other-amount-btn').removeClass('active');
+        
+        // Add selected class to clicked button
+        $(this).addClass('selected');
+        
+        // Hide custom amount input
+        $('#recurring-custom-amount-input').hide();
+        
+        // Set the amount
+        $('#selected_amount').val(amount);
+        $('#recurring_step1_amount').val(amount);
+        
+        console.log('Recurring amount set to:', $('#selected_amount').val());
+    });
+    
+    // Handle "Other Amount" button for one-time
     $(document).on('click', '#other-amount-btn', function() {
         console.log('Other amount button clicked');
         
         // Remove selected class from amount buttons
-        $('.amount-btn').removeClass('selected');
+        $('.amount-btn:not(.recurring-amount-btn)').removeClass('selected');
         
         // Toggle active state
         $(this).toggleClass('active');
@@ -47,10 +96,35 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Handle custom amount input
+    // Handle "Other Amount" button for recurring
+    $(document).on('click', '#recurring-other-amount-btn', function() {
+        console.log('Recurring other amount button clicked');
+        
+        // Remove selected class from recurring amount buttons
+        $('.recurring-amount-btn').removeClass('selected');
+        
+        // Toggle active state
+        $(this).toggleClass('active');
+        
+        if ($(this).hasClass('active')) {
+            // Show custom amount input
+            $('#recurring-custom-amount-input').show();
+            $('#recurring_step1_amount').focus();
+            
+            // Clear selected amount if switching to custom
+            $('#selected_amount').val('');
+        } else {
+            // Hide custom amount input
+            $('#recurring-custom-amount-input').hide();
+            $('#selected_amount').val('');
+            $('#recurring_step1_amount').val('');
+        }
+    });
+    
+    // Handle custom amount input for one-time
     $(document).on('input', '#step1_amount', function() {
         const customAmount = $(this).val();
-        console.log('Custom amount entered:', customAmount);
+        console.log('One-time custom amount entered:', customAmount);
         
         if (customAmount && customAmount > 0) {
             $('#selected_amount').val(customAmount);
@@ -61,15 +135,68 @@ jQuery(document).ready(function($) {
         console.log('Selected amount updated to:', $('#selected_amount').val());
     });
     
+    // Handle custom amount input for recurring
+    $(document).on('input', '#recurring_step1_amount', function() {
+        const customAmount = $(this).val();
+        console.log('Recurring custom amount entered:', customAmount);
+        
+        if (customAmount && customAmount > 0) {
+            $('#selected_amount').val(customAmount);
+        } else {
+            $('#selected_amount').val('');
+        }
+        
+        console.log('Selected amount updated to:', $('#selected_amount').val());
+    });
+    
+    // Handle frequency button selection
+    $(document).on('click', '.frequency-btn', function() {
+        console.log('Frequency button clicked:', $(this).data('frequency'));
+        
+        const frequency = $(this).data('frequency');
+        const days = $(this).data('days');
+        
+        // Remove selected class from all frequency buttons
+        $('.frequency-btn').removeClass('selected');
+        
+        // Add selected class to clicked button
+        $(this).addClass('selected');
+        
+        // Set the frequency
+        $('#selected_frequency').val(frequency);
+        $('#selected_frequency_days').val(days);
+        
+        console.log('Frequency set to:', frequency, 'Days:', days);
+    });
+    
+    // Function to clear all selections
+    function clearAllSelections() {
+        // Clear amount selections
+        $('.amount-btn').removeClass('selected');
+        $('.other-amount-toggle').removeClass('active');
+        $('.custom-amount-input').hide();
+        $('#selected_amount').val('');
+        $('#step1_amount').val('');
+        $('#recurring_step1_amount').val('');
+        
+        // Clear frequency selections
+        $('.frequency-btn').removeClass('selected');
+        $('#selected_frequency').val('');
+        $('#selected_frequency_days').val('');
+    }
+    
     // Handle "Give" button click
     $(document).on('click', '#give-button', function() {
         console.log('Give button clicked');
         
         const amount = $('#selected_amount').val();
         const description = $('#step1_description').val().trim();
+        const paymentType = $('#payment_type').val();
+        const frequency = $('#selected_frequency').val();
         const $messages = $('#step1-messages');
+        const descriptionFieldVisible = $('#step1_description').is(':visible');
         
-        console.log('Amount:', amount, 'Description:', description);
+        console.log('Amount:', amount, 'Description:', description, 'Payment type:', paymentType, 'Frequency:', frequency);
         
         // Clear previous messages
         $messages.removeClass('error success').empty();
@@ -84,7 +211,16 @@ jQuery(document).ready(function($) {
             $('.amount-buttons, .other-amount-container').removeClass('error');
         }
         
-        if (!description) {
+        // Validate frequency for recurring payments
+        if (paymentType === 'recurring' && !frequency) {
+            isValid = false;
+            $('.frequency-buttons').addClass('error');
+        } else {
+            $('.frequency-buttons').removeClass('error');
+        }
+        
+        // Only validate description if the field is visible
+        if (descriptionFieldVisible && !description) {
             isValid = false;
             $('#step1_description').addClass('error');
         } else {
@@ -96,10 +232,19 @@ jQuery(document).ready(function($) {
             if (!amount || amount <= 0) {
                 errorMsg += 'Please select an amount';
             }
-            if ((!amount || amount <= 0) && !description) {
-                errorMsg += ' and enter a description';
-            } else if (!description) {
-                errorMsg += 'Please enter a description';
+            if (paymentType === 'recurring' && !frequency) {
+                if (!amount || amount <= 0) {
+                    errorMsg += ' and select a billing frequency';
+                } else {
+                    errorMsg += 'Please select a billing frequency';
+                }
+            }
+            if (descriptionFieldVisible && !description) {
+                if ((!amount || amount <= 0) || (paymentType === 'recurring' && !frequency)) {
+                    errorMsg += ' and enter a description';
+                } else {
+                    errorMsg += 'Please enter a description';
+                }
             }
             errorMsg += '.</p>';
             
@@ -107,11 +252,21 @@ jQuery(document).ready(function($) {
             return;
         }
         
+        // Use description from field or default to the hidden field value
+        const finalDescription = description || $('#step1_description').val();
+        
+        // Create summary text based on payment type
+        let summaryText = finalDescription;
+        if (paymentType === 'recurring') {
+            const frequencyText = frequency.charAt(0).toUpperCase() + frequency.slice(1);
+            summaryText = finalDescription + ' (' + frequencyText + ' Recurring)';
+        }
+        
         // Transfer data to step 2
         $('#final_amount').val(amount);
-        $('#final_description').val(description);
-        $('.summary-amount').text('$' + parseFloat(amount).toFixed(2));
-        $('.summary-description').text(description);
+        $('#final_description').val(finalDescription);
+        $('.summary-amount').text('$' + parseFloat(amount).toFixed(2) + (paymentType === 'recurring' ? '/' + frequency.substring(0, 2) : ''));
+        $('.summary-description').text(summaryText);
         
         console.log('Switching to step 2');
         
@@ -194,12 +349,7 @@ jQuery(document).ready(function($) {
                         $('#step-1').show();
                         $messages.empty();
                         // Reset step 1 as well
-                        $('#selected_amount').val('');
-                        $('#step1_amount').val('');
-                        $('#step1_description').val('');
-                        $('.amount-btn').removeClass('selected');
-                        $('#other-amount-btn').removeClass('active');
-                        $('#custom-amount-input').hide();
+                        clearAllSelections();
                     }, 3000);
                 } else {
                     $messages.addClass('error').html(
@@ -298,4 +448,5 @@ jQuery(document).ready(function($) {
         }
         return (sum % 10) === 0;
     }
+    
 });

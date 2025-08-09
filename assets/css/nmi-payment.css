@@ -268,7 +268,119 @@
     margin-bottom: 0;
 }
 
-/* Amount selection buttons */
+/* Payment type tabs */
+.payment-type-tabs {
+    display: flex;
+    margin-bottom: 20px;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.payment-type-tab {
+    flex: 1;
+    padding: 12px 20px;
+    background: #f8f9fa;
+    border: none;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #666;
+}
+
+.payment-type-tab:first-child {
+    border-right: 1px solid #e1e5e9;
+}
+
+.payment-type-tab:hover {
+    background: #e9ecef;
+}
+
+.payment-type-tab.active {
+    background: #007cba;
+    color: white;
+}
+
+/* Payment type sections */
+.payment-type-section {
+    display: none;
+}
+
+.payment-type-section.active {
+    display: block;
+}
+
+/* Frequency buttons */
+.frequency-buttons {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.frequency-btn {
+    flex: 1;
+    min-width: 100px;
+    padding: 12px 20px;
+    background: #f8f9fa;
+    border: 2px solid #e1e5e9;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #333;
+}
+
+.frequency-btn:hover {
+    background: #e9ecef;
+    border-color: #007cba;
+}
+
+.frequency-btn.selected {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+/* Recurring amounts styling */
+.recurring-amounts .amount-btn {
+    position: relative;
+}
+
+.recurring-amounts .amount-btn::after {
+    content: '/mo';
+    font-size: 12px;
+    color: #666;
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+}
+
+.recurring-amounts .amount-btn.selected::after {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+/* Give button dynamic text */
+#give-button-text {
+    transition: all 0.3s ease;
+}
+
+@media (max-width: 600px) {
+    .frequency-buttons {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .frequency-btn {
+        flex: none;
+    }
+    
+    .payment-type-tabs {
+        margin: 10px 0 20px 0;
+    }
+}
 .amount-buttons {
     display: flex;
     gap: 10px;
@@ -347,6 +459,16 @@
 }
 
 .amount-buttons.error .amount-btn.selected {
+    border-color: #dc3232;
+    background: #dc3232;
+}
+
+/* Error states for frequency selection */
+.frequency-buttons.error .frequency-btn {
+    border-color: #dc3232;
+}
+
+.frequency-buttons.error .frequency-btn.selected {
     border-color: #dc3232;
     background: #dc3232;
 }
