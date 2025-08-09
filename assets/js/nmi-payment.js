@@ -334,7 +334,7 @@ jQuery(document).ready(function($) {
         $.ajax({
             url: nmi_ajax.ajax_url,
             type: 'POST',
-            data: $form.serialize() + '&action=process_nmi_payment',
+            data: $form.serialize() + '&action=process_nmi_payment&payment_type=' + $('#payment_type').val() + '&selected_frequency=' + $('#selected_frequency').val() + '&selected_frequency_days=' + $('#selected_frequency_days').val(),
             success: function(response) {
                 if (response.success) {
                     $messages.addClass('success').html(

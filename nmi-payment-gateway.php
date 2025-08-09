@@ -291,74 +291,151 @@ class NMI_Payment_Gateway {
         $payment_type = isset($_POST['payment_type']) ? sanitize_text_field($_POST['payment_type']) : 'one-time';
         $is_recurring = ($payment_type === 'recurring');
         
-        // Base payment data
-        $payment_data = array(
-            'security_key' => $api_key,
-            'amount' => sanitize_text_field($_POST['amount']),
-            'ccnumber' => preg_replace('/\s+/', '', sanitize_text_field($_POST['ccnumber'])),
-            'ccexp' => sanitize_text_field($_POST['ccexp_month']) . sanitize_text_field($_POST['ccexp_year']),
-            'cvv' => sanitize_text_field($_POST['cvv']),
-            'first_name' => sanitize_text_field($_POST['first_name']),
-            'last_name' => sanitize_text_field($_POST['last_name']),
-            'email' => sanitize_email($_POST['email']),
-            'address1' => sanitize_text_field($_POST['address1']),
-            'city' => sanitize_text_field($_POST['city']),
-            'state' => sanitize_text_field($_POST['state']),
-            'zip' => sanitize_text_field($_POST['zip']),
-            'orderid' => 'WP-' . time() . '-' . rand(1000, 9999),
-            'orderdescription' => sanitize_text_field($_POST['description'])
-        );
-        
-        // Add recurring-specific fields or one-time specific fields
-        if ($is_recurring) {
-            // For recurring payments, use recurring billing API
-            $payment_data['recurring'] = 'add_subscription';
-            $payment_data['plan_payments'] = '0';
-            $payment_data['day_frequency'] = sanitize_text_field($_POST['selected_frequency_days']);
-            $payment_data['plan_amount'] = $payment_data['amount']; // NMI uses plan_amount for recurring
-        } else {
-            // For one-time payments, use standard transaction API
-            $payment_data['type'] = 'sale';
-        }
-        
         // NMI API endpoint
         $api_url = $sandbox ? 'https://secure.nmi.com/api/transact.php' : 'https://secure.nmi.com/api/transact.php';
         
-        // Make API request
-        $response = wp_remote_post($api_url, array(
-            'body' => $payment_data,
-            'timeout' => 30,
-            'sslverify' => true
-        ));
-        
-        if (is_wp_error($response)) {
-            wp_send_json_error('Payment processing failed: ' . $response->get_error_message());
-            return;
-        }
-        
-        $body = wp_remote_retrieve_body($response);
-        parse_str($body, $result);
-        
-        // Save transaction to database
-        $this->save_transaction($payment_data, $result);
-        
-        // Handle response based on payment type
         if ($is_recurring) {
-            // For recurring payments, check for subscription_id
-            if (isset($result['response']) && $result['response'] == '1') {
-                $subscription_id = isset($result['subscription_id']) ? $result['subscription_id'] : '';
+            // For recurring payments: Process immediate payment first, then set up subscription
+            
+            // Step 1: Process immediate one-time payment
+            $immediate_payment_data = array(
+                'security_key' => $api_key,
+                'type' => 'sale',
+                'amount' => sanitize_text_field($_POST['amount']),
+                'ccnumber' => preg_replace('/\s+/', '', sanitize_text_field($_POST['ccnumber'])),
+                'ccexp' => sanitize_text_field($_POST['ccexp_month']) . sanitize_text_field($_POST['ccexp_year']),
+                'cvv' => sanitize_text_field($_POST['cvv']),
+                'first_name' => sanitize_text_field($_POST['first_name']),
+                'last_name' => sanitize_text_field($_POST['last_name']),
+                'email' => sanitize_email($_POST['email']),
+                'address1' => sanitize_text_field($_POST['address1']),
+                'city' => sanitize_text_field($_POST['city']),
+                'state' => sanitize_text_field($_POST['state']),
+                'zip' => sanitize_text_field($_POST['zip']),
+                'orderid' => 'WP-IMMEDIATE-' . time() . '-' . rand(1000, 9999),
+                'orderdescription' => sanitize_text_field($_POST['description']) . ' (Initial Payment)',
+                'customer_vault' => 'add_customer' // Store customer for recurring billing
+            );
+            
+            // Make immediate payment request
+            $immediate_response = wp_remote_post($api_url, array(
+                'body' => $immediate_payment_data,
+                'timeout' => 30,
+                'sslverify' => true
+            ));
+            
+            if (is_wp_error($immediate_response)) {
+                wp_send_json_error('Immediate payment processing failed: ' . $immediate_response->get_error_message());
+                return;
+            }
+            
+            $immediate_body = wp_remote_retrieve_body($immediate_response);
+            parse_str($immediate_body, $immediate_result);
+            
+            // Check if immediate payment was successful
+            if (!isset($immediate_result['response']) || $immediate_result['response'] != '1') {
+                $error_message = isset($immediate_result['responsetext']) ? $immediate_result['responsetext'] : 'Immediate payment failed';
+                wp_send_json_error('Initial payment failed: ' . $error_message);
+                return;
+            }
+            
+            // Save the immediate transaction
+            $this->save_transaction($immediate_payment_data, $immediate_result);
+            
+            // Step 2: Set up recurring subscription using customer vault ID
+            $customer_vault_id = isset($immediate_result['customer_vault_id']) ? $immediate_result['customer_vault_id'] : '';
+            
+            if (empty($customer_vault_id)) {
+                wp_send_json_error('Customer vault ID not returned. Recurring billing setup failed.');
+                return;
+            }
+            
+            $recurring_payment_data = array(
+                'security_key' => $api_key,
+                'recurring' => 'add_subscription',
+                'plan_payments' => '0',
+                'day_frequency' => sanitize_text_field($_POST['selected_frequency_days']),
+                'plan_amount' => sanitize_text_field($_POST['amount']),
+                'customer_vault_id' => $customer_vault_id,
+                'orderid' => 'WP-RECURRING-' . time() . '-' . rand(1000, 9999),
+                'orderdescription' => sanitize_text_field($_POST['description']) . ' (Recurring)',
+                'start_date' => date('Ymd', strtotime('+' . sanitize_text_field($_POST['selected_frequency_days']) . ' days'))
+            );
+            
+            // Make recurring subscription request
+            $recurring_response = wp_remote_post($api_url, array(
+                'body' => $recurring_payment_data,
+                'timeout' => 30,
+                'sslverify' => true
+            ));
+            
+            if (is_wp_error($recurring_response)) {
+                wp_send_json_error('Recurring billing setup failed: ' . $recurring_response->get_error_message());
+                return;
+            }
+            
+            $recurring_body = wp_remote_retrieve_body($recurring_response);
+            parse_str($recurring_body, $recurring_result);
+            
+            // Save the recurring subscription setup
+            $this->save_transaction($recurring_payment_data, $recurring_result);
+            
+            // Check if recurring setup was successful
+            if (isset($recurring_result['response']) && $recurring_result['response'] == '1') {
+                $subscription_id = isset($recurring_result['subscription_id']) ? $recurring_result['subscription_id'] : '';
+                $transaction_id = isset($immediate_result['transactionid']) ? $immediate_result['transactionid'] : '';
+                
                 wp_send_json_success(array(
-                    'message' => 'Recurring payment setup successful!',
+                    'message' => 'Payment processed and recurring billing setup successful!',
+                    'transaction_id' => $transaction_id,
                     'subscription_id' => $subscription_id,
-                    'amount' => $payment_data['amount'],
-                    'frequency' => $_POST['selected_frequency']
+                    'amount' => $immediate_payment_data['amount'],
+                    'frequency' => $_POST['selected_frequency'],
+                    'next_billing_date' => date('M j, Y', strtotime('+' . sanitize_text_field($_POST['selected_frequency_days']) . ' days'))
                 ));
             } else {
-                $error_message = isset($result['responsetext']) ? $result['responsetext'] : 'Recurring payment setup failed';
-                wp_send_json_error($error_message);
+                $error_message = isset($recurring_result['responsetext']) ? $recurring_result['responsetext'] : 'Recurring billing setup failed';
+                wp_send_json_error('Payment processed successfully, but recurring setup failed: ' . $error_message);
             }
+            
         } else {
-            // For one-time payments, check for transaction_id
+            // For one-time payments, use original logic
+            $payment_data = array(
+                'security_key' => $api_key,
+                'type' => 'sale',
+                'amount' => sanitize_text_field($_POST['amount']),
+                'ccnumber' => preg_replace('/\s+/', '', sanitize_text_field($_POST['ccnumber'])),
+                'ccexp' => sanitize_text_field($_POST['ccexp_month']) . sanitize_text_field($_POST['ccexp_year']),
+                'cvv' => sanitize_text_field($_POST['cvv']),
+                'first_name' => sanitize_text_field($_POST['first_name']),
+                'last_name' => sanitize_text_field($_POST['last_name']),
+                'email' => sanitize_email($_POST['email']),
+                'address1' => sanitize_text_field($_POST['address1']),
+                'city' => sanitize_text_field($_POST['city']),
+                'state' => sanitize_text_field($_POST['state']),
+                'zip' => sanitize_text_field($_POST['zip']),
+                'orderid' => 'WP-' . time() . '-' . rand(1000, 9999),
+                'orderdescription' => sanitize_text_field($_POST['description'])
+            );
+            
+            // Make API request
+            $response = wp_remote_post($api_url, array(
+                'body' => $payment_data,
+                'timeout' => 30,
+                'sslverify' => true
+            ));
+            
+            if (is_wp_error($response)) {
+                wp_send_json_error('Payment processing failed: ' . $response->get_error_message());
+                return;
+            }
+            
+            $body = wp_remote_retrieve_body($response);
+            parse_str($body, $result);
+            
+            // Save transaction to database
+            $this->save_transaction($payment_data, $result);
+            
             if (isset($result['response']) && $result['response'] == '1') {
                 wp_send_json_success(array(
                     'message' => 'Payment successful!',
