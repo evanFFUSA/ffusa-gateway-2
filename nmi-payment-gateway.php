@@ -335,6 +335,12 @@ class NMI_Payment_Gateway {
             // Check if immediate payment was successful
             if (!isset($immediate_result['response']) || $immediate_result['response'] != '1') {
                 $error_message = isset($immediate_result['responsetext']) ? $immediate_result['responsetext'] : 'Immediate payment failed';
+                
+                // Clean output buffer
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
                 wp_send_json_error('Initial payment failed: ' . $error_message);
                 return;
             }
@@ -346,6 +352,11 @@ class NMI_Payment_Gateway {
             $customer_vault_id = isset($immediate_result['customer_vault_id']) ? $immediate_result['customer_vault_id'] : '';
             
             if (empty($customer_vault_id)) {
+                // Clean output buffer
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
                 wp_send_json_error('Customer vault ID not returned. Recurring billing setup failed.');
                 return;
             }
@@ -385,16 +396,27 @@ class NMI_Payment_Gateway {
                 $subscription_id = isset($recurring_result['subscription_id']) ? $recurring_result['subscription_id'] : '';
                 $transaction_id = isset($immediate_result['transactionid']) ? $immediate_result['transactionid'] : '';
                 
+                // Clean output buffer to prevent any stray output
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
                 wp_send_json_success(array(
                     'message' => 'Payment processed and recurring billing setup successful!',
                     'transaction_id' => $transaction_id,
                     'subscription_id' => $subscription_id,
                     'amount' => $immediate_payment_data['amount'],
-                    'frequency' => $_POST['selected_frequency'],
+                    'frequency' => sanitize_text_field($_POST['selected_frequency']),
                     'next_billing_date' => date('M j, Y', strtotime('+' . sanitize_text_field($_POST['selected_frequency_days']) . ' days'))
                 ));
             } else {
                 $error_message = isset($recurring_result['responsetext']) ? $recurring_result['responsetext'] : 'Recurring billing setup failed';
+                
+                // Clean output buffer
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
                 wp_send_json_error('Payment processed successfully, but recurring setup failed: ' . $error_message);
             }
             
@@ -437,6 +459,11 @@ class NMI_Payment_Gateway {
             $this->save_transaction($payment_data, $result);
             
             if (isset($result['response']) && $result['response'] == '1') {
+                // Clean output buffer
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
                 wp_send_json_success(array(
                     'message' => 'Payment successful!',
                     'transaction_id' => isset($result['transactionid']) ? $result['transactionid'] : '',
@@ -444,6 +471,12 @@ class NMI_Payment_Gateway {
                 ));
             } else {
                 $error_message = isset($result['responsetext']) ? $result['responsetext'] : 'Payment failed';
+                
+                // Clean output buffer
+                if (ob_get_level()) {
+                    ob_clean();
+                }
+                
                 wp_send_json_error($error_message);
             }
         }
