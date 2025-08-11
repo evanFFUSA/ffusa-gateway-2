@@ -337,10 +337,23 @@ jQuery(document).ready(function($) {
             data: $form.serialize() + '&action=process_nmi_payment&payment_type=' + $('#payment_type').val() + '&selected_frequency=' + $('#selected_frequency').val() + '&selected_frequency_days=' + $('#selected_frequency_days').val(),
             success: function(response) {
                 if (response.success) {
-                    $messages.addClass('success').html(
-                        '<p><strong>Success!</strong> ' + response.data.message + '</p>' +
-                        '<p>Transaction ID: ' + response.data.transaction_id + '</p>'
-                    );
+                    let successMessage = '<p><strong>Success!</strong> ' + response.data.message + '</p>';
+                    
+                    // Add transaction ID if available
+                    if (response.data.transaction_id) {
+                        successMessage += '<p>Transaction ID: ' + response.data.transaction_id + '</p>';
+                    }
+                    
+                    // Add subscription details if this is a recurring payment
+                    if (response.data.subscription_id) {
+                        successMessage += '<p>Subscription ID: ' + response.data.subscription_id + '</p>';
+                    }
+                    
+                    if (response.data.next_billing_date) {
+                        successMessage += '<p>Next billing date: ' + response.data.next_billing_date + '</p>';
+                    }
+                    
+                    $messages.addClass('success').html(successMessage);
                     $form[0].reset();
                     
                     // Reset to step 1 after successful payment
@@ -350,16 +363,20 @@ jQuery(document).ready(function($) {
                         $messages.empty();
                         // Reset step 1 as well
                         clearAllSelections();
-                    }, 3000);
+                    }, 5000); // Extended to 5 seconds for recurring payments
                 } else {
                     $messages.addClass('error').html(
                         '<p><strong>Error:</strong> ' + response.data + '</p>'
                     );
                 }
             },
-            error: function() {
+            error: function(xhr, status, error) {
+                console.log('AJAX Error:', xhr, status, error);
+                console.log('Response Text:', xhr.responseText);
+                
                 $messages.addClass('error').html(
-                    '<p><strong>Error:</strong> Unable to process payment. Please try again.</p>'
+                    '<p><strong>Error:</strong> Unable to process payment. Please try again.</p>' +
+                    '<p><small>Technical details: ' + error + '</small></p>'
                 );
             },
             complete: function() {
