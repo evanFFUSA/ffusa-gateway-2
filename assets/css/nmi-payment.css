@@ -350,7 +350,6 @@
 }
 
 .recurring-amounts .amount-btn::after {
-    content: '/mo';
     font-size: 12px;
     color: #666;
     position: absolute;

@@ -112,7 +112,7 @@ class NMI_Payment_Gateway {
                 <!-- Recurring Payment Section -->
                 <div id="recurring-section" class="payment-type-section" style="display: none;">
                     <div class="form-group">
-                        <label>Select Monthly Amount</label>
+                        <label>Select Recurring Amount</label>
                         <div class="amount-buttons recurring-amounts">
                             <button type="button" class="amount-btn recurring-amount-btn" data-amount="10">$10</button>
                             <button type="button" class="amount-btn recurring-amount-btn" data-amount="25">$25</button>
