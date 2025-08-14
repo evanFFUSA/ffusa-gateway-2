@@ -145,25 +145,34 @@ class NMI_Payment_Gateway {
                 <input type="hidden" id="payment_type" name="payment_type" value="one-time">
                 
                 <?php if ($show_description): ?>
-                <div class="form-group">
-                    <label for="step1_description"><?php echo esc_html($description_field_label); ?></label>
-                    <input type="text" id="step1_description" 
-                           value="<?php echo esc_attr($atts['description']); ?>" 
-                           placeholder="<?php echo esc_attr($description_placeholder); ?>">
-                </div>
-                <?php else: ?>
-                <!-- Hidden description field with default value -->
-                <input type="hidden" id="step1_description" value="<?php echo esc_attr($atts['description']); ?>">
-                <?php endif; ?>
-                
-                <div class="form-group">
-                    <button type="button" id="give-button" class="nmi-give-button">
-                        <span id="give-button-text">Give</span>
-                    </button>
-                </div>
-                
-                <div id="step1-messages"></div>
+            <!-- User toggle for description field -->
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="description_toggle" class="description-toggle-checkbox">
+                    Add a custom <?php echo esc_html(strtolower($description_field_label)); ?> for this payment
+                </label>
             </div>
+            
+            <!-- Description field (initially hidden) -->
+            <div class="form-group" id="description_field_container" style="display: none;">
+                <label for="step1_description"><?php echo esc_html($description_field_label); ?></label>
+                <input type="text" id="step1_description" 
+                       value="<?php echo esc_attr($atts['description']); ?>" 
+                       placeholder="<?php echo esc_attr($description_placeholder); ?>">
+            </div>
+            <?php else: ?>
+            <!-- Hidden description field with default value -->
+            <input type="hidden" id="step1_description" value="<?php echo esc_attr($atts['description']); ?>">
+            <?php endif; ?>
+            
+            <div class="form-group">
+                <button type="button" id="give-button" class="nmi-give-button">
+                    <span id="give-button-text">Give</span>
+                </button>
+            </div>
+            
+            <div id="step1-messages"></div>
+        </div>
             
             <!-- Step 2: Payment Details Form -->
             <div id="step-2" class="payment-step" style="display: none;">
