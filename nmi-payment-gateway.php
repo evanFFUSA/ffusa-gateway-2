@@ -520,105 +520,220 @@ class NMI_Payment_Gateway {
     }
     
     public function admin_page() {
-        if (isset($_POST['submit'])) {
-            $settings = array(
-                'api_key' => sanitize_text_field($_POST['api_key']),
-                'sandbox' => isset($_POST['sandbox']),
-                'default_button_text' => sanitize_text_field($_POST['default_button_text']),
-                'default_description' => sanitize_text_field($_POST['default_description']),
-                'show_description_field' => isset($_POST['show_description_field']),
-                'description_field_label' => sanitize_text_field($_POST['description_field_label']),
-                'description_placeholder' => sanitize_text_field($_POST['description_placeholder']),
-            );
-            update_option('nmi_payment_settings', $settings);
-            echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
+    if (isset($_POST['submit'])) {
+        $settings = array(
+            'sandbox' => isset($_POST['sandbox']),
+            'default_button_text' => sanitize_text_field($_POST['default_button_text']),
+            'default_description' => sanitize_text_field($_POST['default_description']),
+            'show_description_field' => isset($_POST['show_description_field']),
+            'description_field_required' => isset($_POST['description_field_required']),
+            'description_field_label' => sanitize_text_field($_POST['description_field_label']),
+            'description_placeholder' => sanitize_text_field($_POST['description_placeholder']),
+        );
+        
+        // Only update API key if a new one is provided (not the masked placeholder)
+        $api_key_input = sanitize_text_field($_POST['api_key']);
+        if (!empty($api_key_input) && $api_key_input !== '••••••••••••••••••••') {
+            $settings['api_key'] = $api_key_input;
+        } else {
+            // Keep existing API key
+            $existing_settings = get_option('nmi_payment_settings', array());
+            $settings['api_key'] = isset($existing_settings['api_key']) ? $existing_settings['api_key'] : '';
         }
         
+        update_option('nmi_payment_settings', $settings);
+        echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
+    }
+        
         $settings = get_option('nmi_payment_settings', array());
+        $api_key = isset($settings['api_key']) ? $settings['api_key'] : '';
+        $api_key_display = !empty($api_key) ? '••••••••••••••••••••' : '';
         ?>
         <div class="wrap">
-            <h1>NMI Payment Gateway Settings</h1>
-            <form method="post">
-                <table class="form-table">
-                    <tr>
-                        <th scope="row">API Key</th>
-                        <td>
-                            <input type="text" name="api_key" 
-                                   value="<?php echo esc_attr(isset($settings['api_key']) ? $settings['api_key'] : ''); ?>" 
-                                   class="regular-text" required>
-                            <p class="description">Enter your NMI Security Key</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Sandbox Mode</th>
-                        <td>
-                            <input type="checkbox" name="sandbox" value="1" 
-                                   <?php checked(isset($settings['sandbox']) ? $settings['sandbox'] : true); ?>>
-                            <label>Enable sandbox/test mode</label>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Default Button Text</th>
-                        <td>
-                            <input type="text" name="default_button_text" 
-                                   value="<?php echo esc_attr(isset($settings['default_button_text']) ? $settings['default_button_text'] : 'Pay Now'); ?>" 
-                                   class="regular-text">
-                            <p class="description">Default text for the payment button (can be overridden by shortcode)</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Default Description</th>
-                        <td>
-                            <input type="text" name="default_description" 
-                                   value="<?php echo esc_attr(isset($settings['default_description']) ? $settings['default_description'] : 'Payment'); ?>" 
-                                   class="regular-text">
-                            <p class="description">Default payment description (can be overridden by shortcode)</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Show Description Field</th>
-                        <td>
-                            <input type="checkbox" name="show_description_field" value="1" 
-                                   <?php checked(isset($settings['show_description_field']) ? $settings['show_description_field'] : true); ?>>
-                            <label>Show description field on payment form</label>
-                            <p class="description">Allow users to enter a custom description for their payment</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Description Field Label</th>
-                        <td>
-                            <input type="text" name="description_field_label" 
-                                   value="<?php echo esc_attr(isset($settings['description_field_label']) ? $settings['description_field_label'] : 'Description'); ?>" 
-                                   class="regular-text">
-                            <p class="description">Label text for the description field</p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">Description Placeholder Text</th>
-                        <td>
-                            <input type="text" name="description_placeholder" 
-                                   value="<?php echo esc_attr(isset($settings['description_placeholder']) ? $settings['description_placeholder'] : 'What is this payment for?'); ?>" 
-                                   class="regular-text">
-                            <p class="description">Placeholder text shown in the description field</p>
-                        </td>
-                    </tr>
-                </table>
-                <?php submit_button(); ?>
-            </form>
+        <h1>NMI Payment Gateway Settings</h1>
+        <form method="post">
+            <table class="form-table">
+                <tr>
+                    <th scope="row">API Key</th>
+                    <td>
+                        <div style="position: relative;">
+                            <input type="password" 
+                                   id="nmi_api_key" 
+                                   name="api_key" 
+                                   value="<?php echo esc_attr($api_key_display); ?>" 
+                                   class="regular-text" 
+                                   placeholder="Enter your NMI Security Key"
+                                   autocomplete="new-password">
+                            <button type="button" 
+                                    id="toggle_api_key" 
+                                    class="button button-secondary" 
+                                    style="margin-left: 10px;"
+                                    onclick="toggleApiKeyVisibility()">
+                                <?php echo !empty($api_key) ? 'Change' : 'Show'; ?>
+                            </button>
+                            <?php if (!empty($api_key)): ?>
+                                <button type="button" 
+                                        id="clear_api_key" 
+                                        class="button button-secondary" 
+                                        style="margin-left: 5px; color: #dc3232;"
+                                        onclick="clearApiKey()">
+                                    Clear
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                        <p class="description">
+                            Enter your NMI Security Key. 
+                            <?php if (!empty($api_key)): ?>
+                                <span style="color: #46b450;">✓ API Key is configured</span>
+                            <?php else: ?>
+                                <span style="color: #dc3232;">⚠ API Key is required</span>
+                            <?php endif; ?>
+                        </p>
+                        <input type="hidden" id="api_key_changed" name="api_key_changed" value="0">
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Sandbox Mode</th>
+                    <td>
+                        <input type="checkbox" name="sandbox" value="1" 
+                               <?php checked(isset($settings['sandbox']) ? $settings['sandbox'] : true); ?>>
+                        <label>Enable sandbox/test mode</label>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Default Button Text</th>
+                    <td>
+                        <input type="text" name="default_button_text" 
+                               value="<?php echo esc_attr(isset($settings['default_button_text']) ? $settings['default_button_text'] : 'Pay Now'); ?>" 
+                               class="regular-text">
+                        <p class="description">Default text for the payment button (can be overridden by shortcode)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Default Description</th>
+                    <td>
+                        <input type="text" name="default_description" 
+                               value="<?php echo esc_attr(isset($settings['default_description']) ? $settings['default_description'] : 'Payment'); ?>" 
+                               class="regular-text">
+                        <p class="description">Default payment description (can be overridden by shortcode)</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Show Description Field</th>
+                    <td>
+                        <input type="checkbox" name="show_description_field" value="1" 
+                               <?php checked(isset($settings['show_description_field']) ? $settings['show_description_field'] : true); ?>>
+                        <label>Show description field on payment form</label>
+                        <p class="description">Allow users to toggle a custom description for their payment</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Description Field Required</th>
+                    <td>
+                        <input type="checkbox" name="description_field_required" value="1" 
+                               <?php checked(isset($settings['description_field_required']) ? $settings['description_field_required'] : false); ?>>
+                        <label>Make description field required when visible</label>
+                        <p class="description">When the description field is shown, require users to fill it out</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Description Field Label</th>
+                    <td>
+                        <input type="text" name="description_field_label" 
+                               value="<?php echo esc_attr(isset($settings['description_field_label']) ? $settings['description_field_label'] : 'Description'); ?>" 
+                               class="regular-text">
+                        <p class="description">Label text for the description field</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Description Placeholder Text</th>
+                    <td>
+                        <input type="text" name="description_placeholder" 
+                               value="<?php echo esc_attr(isset($settings['description_placeholder']) ? $settings['description_placeholder'] : 'What is this payment for?'); ?>" 
+                               class="regular-text">
+                        <p class="description">Placeholder text shown in the description field</p>
+                    </td>
+                </tr>
+            </table>
+            <?php submit_button(); ?>
+        </form>
+            <script>
+        function toggleApiKeyVisibility() {
+            var input = document.getElementById('nmi_api_key');
+            var button = document.getElementById('toggle_api_key');
+            var changed = document.getElementById('api_key_changed');
             
-            <h2>Usage</h2>
-            <p>Use the shortcode <code>[nmi_payment_form]</code> to display the payment form.</p>
-            <p>Available shortcode parameters:</p>
-            <ul>
-                <li><code>amount</code> - Fixed amount (optional)</li>
-                <li><code>description</code> - Payment description (default: "<?php echo esc_html(isset($settings['default_description']) ? $settings['default_description'] : 'Payment'); ?>")</li>
-                <li><code>button_text</code> - Button text (default: "<?php echo esc_html(isset($settings['default_button_text']) ? $settings['default_button_text'] : 'Pay Now'); ?>")</li>
-                <li><code>show_description</code> - Show/hide description field (default: <?php echo isset($settings['show_description_field']) && $settings['show_description_field'] ? 'true' : 'false'; ?>)</li>
-            </ul>
-            <p>Example: <code>[nmi_payment_form amount="19.99" description="Product Purchase" button_text="Buy Now"]</code></p>
-        </div>
-        <?php
-    }
+            if (input.type === 'password') {
+                input.type = 'text';
+                input.value = '';
+                input.placeholder = 'Enter your new NMI Security Key';
+                input.focus();
+                button.textContent = 'Cancel';
+                changed.value = '1';
+            } else {
+                input.type = 'password';
+                input.value = '••••••••••••••••••••';
+                input.placeholder = 'Enter your NMI Security Key';
+                button.textContent = 'Change';
+                changed.value = '0';
+            }
+        }
+        
+        function clearApiKey() {
+            if (confirm('Are you sure you want to clear the API key? This will disable payment processing until a new key is entered.')) {
+                var input = document.getElementById('nmi_api_key');
+                input.type = 'text';
+                input.value = '';
+                input.placeholder = 'Enter your NMI Security Key';
+                document.getElementById('api_key_changed').value = '1';
+                document.getElementById('toggle_api_key').textContent = 'Show';
+                
+                // Hide the clear button since we're clearing
+                var clearBtn = document.getElementById('clear_api_key');
+                if (clearBtn) {
+                    clearBtn.style.display = 'none';
+                }
+            }
+        }
+        
+        // Prevent form submission if trying to save the masked value
+        document.querySelector('form').addEventListener('submit', function(e) {
+            var input = document.getElementById('nmi_api_key');
+            var changed = document.getElementById('api_key_changed');
+            
+            if (input.value === '••••••••••••••••••••' && changed.value === '0') {
+                // It's the masked value and hasn't been changed, which is fine
+                return true;
+            }
+            
+            if (input.value === '' && changed.value === '1') {
+                // User is clearing the API key
+                return true;
+            }
+            
+            if (input.value !== '' && input.value !== '••••••••••••••••••••') {
+                // User has entered a new API key
+                return true;
+            }
+            
+            // Shouldn't reach here, but just in case
+            return true;
+        });
+        </script>
+        
+        <h2>Usage</h2>
+        <p>Use the shortcode <code>[nmi_payment_form]</code> to display the payment form.</p>
+        <p>Available shortcode parameters:</p>
+        <ul>
+            <li><code>amount</code> - Fixed amount (optional)</li>
+            <li><code>description</code> - Payment description (default: "<?php echo esc_html(isset($settings['default_description']) ? $settings['default_description'] : 'Payment'); ?>")</li>
+            <li><code>button_text</code> - Button text (default: "<?php echo esc_html(isset($settings['default_button_text']) ? $settings['default_button_text'] : 'Pay Now'); ?>")</li>
+            <li><code>show_description</code> - Show/hide description field (default: <?php echo isset($settings['show_description_field']) && $settings['show_description_field'] ? 'true' : 'false'; ?>)</li>
+        </ul>
+        <p>Example: <code>[nmi_payment_form amount="19.99" description="Product Purchase" button_text="Buy Now"]</code></p>
+    </div>
+    <?php
+}
     
     public function transactions_page() {
         global $wpdb;
