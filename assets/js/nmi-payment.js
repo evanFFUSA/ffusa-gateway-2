@@ -18,7 +18,7 @@ jQuery(document).ready(function ($) {
         } else if (tabType === 'recurring-tab') {
             $('#recurring-section').addClass('active').show();
             $('#payment_type').val('recurring');
-            $('#give-button-text').text('Start Recurring Gift');
+            $('#give-button-text').text('Give');
         }
 
         // Clear selections when switching

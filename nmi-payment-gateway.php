@@ -1,10 +1,10 @@
 <?php
 /**
  * Plugin Name: NMI Payment Gateway
- * Plugin URI: https://yoursite.com
+ * Plugin URI: https://ffusa.com
  * Description: A basic NMI payment gateway integration for WordPress
  * Version: 1.0.0
- * Author: Your Name
+ * Author: Evan Eliason
  * License: GPL v2 or later
  */
 
@@ -74,7 +74,7 @@ class NMI_Payment_Gateway {
         
         ob_start();
         ?>
-        <div class="nmi-payment-form-container">
+            <div class="nmi-payment-form-container">
             <!-- Step 1: Amount and Payment Type Selection -->
             <div id="step-1" class="payment-step active">
                 <h3>Select Your Contribution</h3>
@@ -82,13 +82,13 @@ class NMI_Payment_Gateway {
                 <!-- Payment Type Toggle -->
                 <div class="form-group">
                     <div class="payment-type-tabs">
-                        <button type="button" id="one-time-tab" class="payment-type-tab active">One Time</button>
-                        <button type="button" id="recurring-tab" class="payment-type-tab">Recurring</button>
+                        <button type="button" id="one-time-tab" class="payment-type-tab">One Time</button>
+                        <button type="button" id="recurring-tab" class="payment-type-tab active">Recurring</button>
                     </div>
                 </div>
                 
                 <!-- One-Time Payment Section -->
-                <div id="one-time-section" class="payment-type-section active">
+                <div id="one-time-section" class="payment-type-section" style="display: none;">
                     <div class="form-group">
                         <label>Select Amount</label>
                         <div class="amount-buttons">
@@ -102,15 +102,15 @@ class NMI_Payment_Gateway {
                             <div id="custom-amount-input" class="custom-amount-input" style="display: none;">
                                 <label for="step1_amount">Enter Amount ($)</label>
                                 <input type="number" id="step1_amount" step="0.01" min="0.01" 
-                                       value="<?php echo esc_attr($atts['amount']); ?>" 
-                                       <?php echo !empty($atts['amount']) ? 'readonly' : ''; ?>>
+                                    value="<?php echo esc_attr($atts['amount']); ?>" 
+                                    <?php echo !empty($atts['amount']) ? 'readonly' : ''; ?>>
                             </div>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Recurring Payment Section -->
-                <div id="recurring-section" class="payment-type-section" style="display: none;">
+                <div id="recurring-section" class="payment-type-section active">
                     <div class="form-group">
                         <label>Select Recurring Amount</label>
                         <div class="amount-buttons recurring-amounts">
@@ -129,7 +129,7 @@ class NMI_Payment_Gateway {
                     </div>
                     
                     <div class="form-group">
-                        <label>Billing Frequency</label>
+                    <label>Billing Frequency</label>
                         <div class="frequency-buttons">
                             <button type="button" class="frequency-btn" data-frequency="monthly" data-days="30">Monthly</button>
                             <button type="button" class="frequency-btn" data-frequency="quarterly" data-days="90">Quarterly</button>
@@ -138,41 +138,48 @@ class NMI_Payment_Gateway {
                         <input type="hidden" id="selected_frequency" name="selected_frequency">
                         <input type="hidden" id="selected_frequency_days" name="selected_frequency_days">
                     </div>
+                    
+                    <!-- Impact message for recurring donations -->
+                    <div class="recurring-impact-message">
+                        <h4 class="impact-title">You're making an Impact!</h4>
+                        <p class="impact-subtitle">Thanks for your ongoing donation! Your continuous support helps us meet ongoing and future needs!</p>
+                        <p class="impact-subtitle">We hope you will support us for a long time, but cancel anytime</p>
+                    </div>
                 </div>
                 
                 <!-- Hidden fields to track payment type and amount -->
                 <input type="hidden" id="selected_amount" name="selected_amount">
-                <input type="hidden" id="payment_type" name="payment_type" value="one-time">
+                <input type="hidden" id="payment_type" name="payment_type" value="recurring">
                 
                 <?php if ($show_description): ?>
-            <!-- User toggle for description field -->
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" id="description_toggle" class="description-toggle-checkbox">
-                    Add a custom <?php echo esc_html(strtolower($description_field_label)); ?> for this payment
-                </label>
+                <!-- User toggle for description field -->
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="description_toggle" class="description-toggle-checkbox">
+                        Add a <?php echo esc_html($description_field_label); ?>
+                    </label>
+                </div>
+                
+                <!-- Description field (initially hidden) -->
+                <div class="form-group" id="description_field_container" style="display: none;">
+                    <label for="step1_description"><?php echo esc_html($description_field_label); ?></label>
+                    <input type="text" id="step1_description" 
+                        value="<?php echo esc_attr($atts['description']); ?>" 
+                        placeholder="<?php echo esc_attr($description_placeholder); ?>">
+                </div>
+                <?php else: ?>
+                <!-- Hidden description field with default value -->
+                <input type="hidden" id="step1_description" value="<?php echo esc_attr($atts['description']); ?>">
+                <?php endif; ?>
+                
+                <div class="form-group">
+                    <button type="button" id="give-button" class="nmi-give-button">
+                        <span id="give-button-text">Give</span>
+                    </button>
+                </div>
+                
+                <div id="step1-messages"></div>
             </div>
-            
-            <!-- Description field (initially hidden) -->
-            <div class="form-group" id="description_field_container" style="display: none;">
-                <label for="step1_description"><?php echo esc_html($description_field_label); ?></label>
-                <input type="text" id="step1_description" 
-                       value="<?php echo esc_attr($atts['description']); ?>" 
-                       placeholder="<?php echo esc_attr($description_placeholder); ?>">
-            </div>
-            <?php else: ?>
-            <!-- Hidden description field with default value -->
-            <input type="hidden" id="step1_description" value="<?php echo esc_attr($atts['description']); ?>">
-            <?php endif; ?>
-            
-            <div class="form-group">
-                <button type="button" id="give-button" class="nmi-give-button">
-                    <span id="give-button-text">Give</span>
-                </button>
-            </div>
-            
-            <div id="step1-messages"></div>
-        </div>
             
             <!-- Step 2: Payment Details Form -->
             <div id="step-2" class="payment-step" style="display: none;">
@@ -209,7 +216,7 @@ class NMI_Payment_Gateway {
                     <div class="form-group">
                         <label for="nmi_card_number">Card Number</label>
                         <input type="text" id="nmi_card_number" name="ccnumber" maxlength="19" 
-                               placeholder="1234 5678 9012 3456" required>
+                            placeholder="1234 5678 9012 3456" required>
                     </div>
                     
                     <div class="form-row">

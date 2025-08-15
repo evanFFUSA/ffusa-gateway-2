@@ -101,7 +101,7 @@
 .nmi-pay-button {
     flex: 1;
     padding: 15px;
-    background: #007cba;
+    background: #28a745;
     color: white;
     border: none;
     border-radius: 4px;
@@ -112,7 +112,7 @@
 }
 
 .nmi-pay-button:hover {
-    background: #005a87;
+    background: #28a745;
 }
 
 .nmi-pay-button:disabled {
@@ -218,28 +218,6 @@
     flex: 0 0 30%;
 }
 
-.nmi-pay-button {
-    width: 100%;
-    padding: 15px;
-    background: #007cba;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 18px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-.nmi-pay-button:hover {
-    background: #005a87;
-}
-
-.nmi-pay-button:disabled {
-    background: #ccc;
-    cursor: not-allowed;
-}
-
 #nmi-payment-messages {
     margin-top: 20px;
 }
@@ -298,7 +276,7 @@
 }
 
 .payment-type-tab.active {
-    background: #007cba;
+    background: #28a745;
     color: white;
 }
 
@@ -335,7 +313,7 @@
 
 .frequency-btn:hover {
     background: #e9ecef;
-    border-color: #007cba;
+    border-color: #28a745;
 }
 
 .frequency-btn.selected {
@@ -403,13 +381,13 @@
 
 .amount-btn:hover {
     background: #e9ecef;
-    border-color: #007cba;
+    border-color: #28a745;
 }
 
 .amount-btn.selected {
-    background: #007cba;
+    background: #28a745;
     color: white;
-    border-color: #007cba;
+    border-color: #28a745;
 }
 
 .other-amount-container {
@@ -430,13 +408,13 @@
 
 .other-amount-toggle:hover {
     background: #e9ecef;
-    border-color: #007cba;
+    border-color: #28a745;
 }
 
 .other-amount-toggle.active {
-    background: #007cba;
+    background: #28a745;
     color: white;
-    border-color: #007cba;
+    border-color: #28a745;
 }
 
 .custom-amount-input {
@@ -567,6 +545,32 @@
 
 #description_field_container.hide {
     animation: slideUp 0.3s ease;
+}
+
+/* ADDED - Recurring impact message styling */
+.recurring-impact-message {
+    text-align: center;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e1e5e9;
+}
+
+.impact-title {
+    color: #28a745;
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 10px 0;
+    text-decoration: underline;
+}
+
+.impact-subtitle {
+    color: #666;
+    font-size: 14px;
+    margin: 5px 0;
+    line-height: 1.4;
 }
 
 @keyframes slideDown {
