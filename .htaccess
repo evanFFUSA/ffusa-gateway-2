@@ -1,0 +1,10 @@
+# Deny direct access to PHP files
+<Files "*.php">
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+# Allow WordPress to access the main plugin file
+<Files "nmi-payment-gateway.php">
+    Allow from all
+</Files>

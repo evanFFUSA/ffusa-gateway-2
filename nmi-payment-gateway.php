@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: NMI Payment Gateway
- * Plugin URI: https://ffusa.com
- * Description: A basic NMI payment gateway integration for WordPress
+ * Plugin URI: https://www.ffusa.com
+ * Description: Customizable NMI payment gateway integration for WordPress sites
  * Version: 1.1.0
  * Author: Evan Eliason
  * License: GPL v2 or later
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('NMI_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('NMI_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('NMI_PAYMENT_VERSION', '1.0.0');
+define('NMI_PAYMENT_VERSION', '1.1.0');
 
 class NMI_Payment_Gateway {
     
@@ -27,8 +27,6 @@ class NMI_Payment_Gateway {
         add_action('wp_ajax_process_nmi_payment', array($this, 'process_payment'));
         add_action('wp_ajax_nopriv_process_nmi_payment', array($this, 'process_payment'));
         add_action('wp_ajax_get_transaction_details', array($this, 'get_transaction_details'));
-        add_action('wp_ajax_save_custom_fields', array($this, 'save_custom_fields'));
-        add_action('wp_ajax_nopriv_save_custom_fields', array($this, 'save_custom_fields'));
         add_action('admin_menu', array($this, 'admin_menu'));
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
@@ -38,7 +36,7 @@ class NMI_Payment_Gateway {
         // Create database table for transactions
         $this->create_transactions_table();
         // Create database table for custom fields
-        $this->create_custom_fields_table();
+        // $this->create_custom_fields_table();
     }
     
     public function enqueue_scripts() {
@@ -292,6 +290,20 @@ class NMI_Payment_Gateway {
         if (!wp_verify_nonce($_POST['nmi_nonce'], 'nmi_payment_nonce')) {
             wp_die('Security check failed');
         }
+
+        // Validate all input data
+        $validation_errors = $this->validate_payment_data($_POST);
+        if (!empty($validation_errors)) {
+            wp_send_json_error('Validation failed: ' . implode(', ', $validation_errors));
+            return;
+        }
+
+        // Rate limiting based on IP address
+        $user_ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        if (!$this->check_rate_limit($user_ip)) {
+            wp_send_json_error('Too many payment attempts. Please wait 15 minutes before trying again.');
+            return;
+        }
         
         // Get NMI settings
         $settings = get_option('nmi_payment_settings', array());
@@ -498,6 +510,24 @@ class NMI_Payment_Gateway {
         }
     }
     
+
+    private function check_rate_limit($identifier, $max_attempts = 5, $time_window = 900) { // 15 minutes
+        $transient_key = 'nmi_rate_limit_' . md5($identifier);
+        $attempts = get_transient($transient_key);
+        
+        if ($attempts === false) {
+            set_transient($transient_key, 1, $time_window);
+            return true;
+        }
+        
+        if ($attempts >= $max_attempts) {
+            return false;
+        }
+        
+        set_transient($transient_key, $attempts + 1, $time_window);
+        return true;
+    }
+    
     public function admin_menu() {
         add_options_page(
             'NMI Payment Settings',
@@ -514,15 +544,6 @@ class NMI_Payment_Gateway {
             'manage_options',
             'nmi-transactions',
             array($this, 'transactions_page')
-        );
-        
-        // Add custom fields page
-        add_management_page(
-            'NMI Custom Fields',
-            'NMI Custom Fields',
-            'manage_options',
-            'nmi-custom-fields',
-            array($this, 'custom_fields_page')
         );
     }
     
@@ -753,27 +774,40 @@ class NMI_Payment_Gateway {
         $per_page = 20;
         $offset = ($paged - 1) * $per_page;
         
-        // Build query
-        $where = '';
+        /// Build query with proper escaping
+        $where_clause = '';
+        $prepare_values = array();
+
         if (!empty($search)) {
-            $where = $wpdb->prepare(
-                " WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s",
-                '%' . $wpdb->esc_like($search) . '%',
-                '%' . $wpdb->esc_like($search) . '%',
-                '%' . $wpdb->esc_like($search) . '%'
-            );
+            $where_clause = " WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s";
+            $search_term = '%' . $wpdb->esc_like($search) . '%';
+            $prepare_values = array($search_term, $search_term, $search_term, $per_page, $offset);
+        } else {
+            $prepare_values = array($per_page, $offset);
         }
-        
+
         // Get total count
-        $total_query = "SELECT COUNT(*) FROM $table_name" . $where;
-        $total_items = $wpdb->get_var($total_query);
-        
-        // Get transactions - Fix SQL injection by using prepare
-        $transactions = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_name $where ORDER BY created_at DESC LIMIT %d OFFSET %d",
-            $per_page,
-            $offset
-        ));
+        if (!empty($search)) {
+            $total_items = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $table_name WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s",
+                $search_term, $search_term, $search_term
+            ));
+        } else {
+            $total_items = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+        }
+
+        // Get transactions with proper preparation
+        if (!empty($search)) {
+            $transactions = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $search_term, $search_term, $search_term, $per_page, $offset
+            ));
+        } else {
+            $transactions = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $per_page, $offset
+            ));
+        }
         
         // Calculate pagination
         $total_pages = ceil($total_items / $per_page);
@@ -828,7 +862,7 @@ class NMI_Payment_Gateway {
                                     </span>
                                 </td>
                                 <td>
-                                    <strong><?php echo esc_html($transaction->customer_name); ?></strong><br>
+                                    <strong><?php echo esc_html($transaction->customer_name); ?></strong>
                                 </td>
                                 <td>
                                     <?php echo esc_html($transaction->customer_email); ?>
@@ -883,106 +917,9 @@ class NMI_Payment_Gateway {
         <?php
     }
     
-    /*
-        *Function removed because we no longer need to retrieve transaction details for security reasons.
-        *Kept just in case we have a major issue with this version.
 
-    public function get_transaction_details() {
-        if (!wp_verify_nonce($_POST['nonce'], 'nmi_admin_nonce') || !current_user_can('manage_options')) {
-            wp_die('Unauthorized');
-        }
-        
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'nmi_transactions';
-        $transaction_id = intval($_POST['transaction_id']);
-        
-        $transaction = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $table_name WHERE id = %d", 
-            $transaction_id
-        ));
-        
-        if (!$transaction) {
-            wp_send_json_error('Transaction not found');
-            return;
-        }
-        
-        $payment_data = json_decode($transaction->payment_data, true);
-        $response_data = json_decode($transaction->response_data, true);
-        
-        ob_start();
-        ?>
-        <div class="detail-row">
-            <span class="detail-label">Transaction ID:</span>
-            <?php echo esc_html($transaction->transaction_id ?: 'N/A'); ?>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Order ID:</span>
-            <?php echo esc_html($transaction->order_id); ?>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Amount:</span>
-            $<?php echo number_format($transaction->amount, 2); ?>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Status:</span>
-            <span class="status-<?php echo esc_attr($transaction->status); ?>">
-                <?php echo ucfirst(esc_html($transaction->status)); ?>
-            </span>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Customer:</span>
-            <?php echo esc_html($transaction->customer_name); ?>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Email:</span>
-            <?php echo esc_html($transaction->customer_email); ?>
-        </div>
-        <div class="detail-row">
-            <span class="detail-label">Date:</span>
-            <?php echo date('M j, Y g:i A', strtotime($transaction->created_at)); ?>
-        </div>
-        
-        <?php if (!empty($payment_data['address1'])): ?>
-        <div class="detail-row">
-            <span class="detail-label">Address:</span>
-            <?php 
-            echo esc_html($payment_data['address1']) . '<br>';
-            echo esc_html($payment_data['city']) . ', ' . esc_html($payment_data['state']) . ' ' . esc_html($payment_data['zip']);
-            ?>
-        </div>
-        <?php endif; ?>
-        
-        <?php if (isset($response_data['responsetext'])): ?>
-        <div class="detail-row">
-            <span class="detail-label">Response:</span>
-            <?php echo esc_html($response_data['responsetext']); ?>
-        </div>
-        <?php endif; ?>
-        
-        <?php if (isset($response_data['authcode']) && $response_data['authcode']): ?>
-        <div class="detail-row">
-            <span class="detail-label">Auth Code:</span>
-            <?php echo esc_html($response_data['authcode']); ?>
-        </div>
-        <?php endif; ?>
-        
-        <div class="detail-row">
-            <span class="detail-label">Card (Last 4):</span>
-            <?php 
-            if (isset($payment_data['ccnumber'])) {
-                echo '**** **** **** ' . substr($payment_data['ccnumber'], -4);
-            } else {
-                echo 'N/A';
-            }
-            ?>
-        </div>
-        <?php
-        
-        $content = ob_get_clean();
-        wp_send_json_success($content);
-    }
-    */
-    
+    /*Removing custom fields management for now
+
     public function save_custom_fields() {
         // Verify nonce
         if (!wp_verify_nonce($_POST['nmi_nonce'], 'nmi_payment_nonce')) {
@@ -992,12 +929,8 @@ class NMI_Payment_Gateway {
         global $wpdb;
         $table_name = $wpdb->prefix . 'nmi_custom_fields';
         
-        // Generate or get session ID
-        if (!session_id()) {
-            $session_key = 'nmi_custom_fields_' . wp_generate_uuid4();
-            set_transient($session_key, $custom_fields, HOUR_IN_SECONDS);
-        }
-        $session_id = session_id();
+        // Generate unique session key using WordPress transients
+        $session_key = 'nmi_session_' . wp_generate_uuid4();
         
         // Get custom fields (exclude standard fields)
         $standard_fields = array('action', 'nmi_nonce', '_wp_http_referer', 'amount', 'description');
@@ -1014,17 +947,20 @@ class NMI_Payment_Gateway {
             $wpdb->insert(
                 $table_name,
                 array(
-                    'session_id' => $session_id,
-                    'field_name' => $field_name,
-                    'field_value' => $field_value
+                    'session_id' => $session_key,
+                    'field_name' => sanitize_text_field($field_name),
+                    'field_value' => sanitize_text_field($field_value)
                 ),
                 array('%s', '%s', '%s')
             );
         }
         
+        // Store session key in transient for later use
+        set_transient('nmi_session_' . get_current_user_id(), $session_key, HOUR_IN_SECONDS);
+        
         wp_send_json_success(array(
             'message' => 'Custom fields saved successfully',
-            'session_id' => $session_id
+            'session_id' => $session_key
         ));
     }
     
@@ -1149,69 +1085,82 @@ class NMI_Payment_Gateway {
         </div>
         <?php
     }
-    
-    private function create_custom_fields_table() {
-        global $wpdb;
-        
-        $table_name = $wpdb->prefix . 'nmi_custom_fields';
-        
-        $charset_collate = $wpdb->get_charset_collate();
-        
-        $sql = "CREATE TABLE $table_name (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            session_id varchar(100) NOT NULL,
-            transaction_id varchar(100) DEFAULT '',
-            field_name varchar(100) NOT NULL,
-            field_value text,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY session_id (session_id),
-            KEY transaction_id (transaction_id)
-        ) $charset_collate;";
-        
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        dbDelta($sql);
-    }
-    
+    */
+
     private function save_transaction($payment_data, $response_data) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'nmi_transactions';
         
         // Only store essential transaction information
-        $transaction_result = $wpdb->insert(
+        $wpdb->insert(
             $table_name,
             array(
-                'transaction_id' => isset($response_data['transactionid']) ? $response_data['transactionid'] : '',
-                'amount' => $payment_data['amount'],
+                'transaction_id' => isset($response_data['transactionid']) ? sanitize_text_field($response_data['transactionid']) : '',
+                'amount' => floatval($payment_data['amount']),
                 'status' => isset($response_data['response']) ? ($response_data['response'] == '1' ? 'success' : 'failed') : 'failed',
-                'customer_email' => $payment_data['email'],
-                'customer_name' => $payment_data['first_name'] . ' ' . $payment_data['last_name']
-                // Removed: order_id, payment_data, response_data
+                'customer_email' => sanitize_email($payment_data['email']),
+                'customer_name' => sanitize_text_field($payment_data['first_name'] . ' ' . $payment_data['last_name'])
             ),
             array('%s', '%f', '%s', '%s', '%s')
         );
+    }
+
+    private function validate_payment_data($data) {
+        $errors = array();
         
-        // Link custom fields to this transaction if session exists
-        if ($transaction_result && !session_id()) {
-            $session_key = 'nmi_custom_fields_' . wp_generate_uuid4();
-            set_transient($session_key, $custom_fields, HOUR_IN_SECONDS);
+        // Validate amount
+        if (!isset($data['amount']) || !is_numeric($data['amount']) || floatval($data['amount']) <= 0) {
+            $errors[] = 'Invalid amount';
         }
         
-        if ($transaction_result && session_id()) {
-            $session_id = session_id();
-            $transaction_id = isset($response_data['transactionid']) ? $response_data['transactionid'] : '';
+        // Validate email
+        if (!isset($data['email']) || !is_email($data['email'])) {
+            $errors[] = 'Invalid email address';
+        }
+        
+        // Validate card number (basic length check)
+        if (!isset($data['ccnumber'])) {
+            $errors[] = 'Card number is required';
+        } else {
+            $card_number = preg_replace('/\s+/', '', $data['ccnumber']);
+            if (!preg_match('/^\d{13,19}$/', $card_number)) {
+                $errors[] = 'Invalid card number format';
+            }
+        }
+        
+        // Validate CVV
+        if (!isset($data['cvv']) || !preg_match('/^\d{3,4}$/', $data['cvv'])) {
+            $errors[] = 'Invalid CVV';
+        }
+        
+        // Validate expiration
+        if (!isset($data['ccexp_month']) || !isset($data['ccexp_year'])) {
+            $errors[] = 'Expiration date is required';
+        } else {
+            $exp_month = intval($data['ccexp_month']);
+            $exp_year = intval($data['ccexp_year']);
+            $current_year = intval(date('Y'));
+            $current_month = intval(date('n'));
             
-            // Update custom fields with transaction ID
-            $custom_fields_table = $wpdb->prefix . 'nmi_custom_fields';
-            $wpdb->update(
-                $custom_fields_table,
-                array('transaction_id' => $transaction_id),
-                array('session_id' => $session_id, 'transaction_id' => ''),
-                array('%s'),
-                array('%s', '%s')
-            );
+            if ($exp_month < 1 || $exp_month > 12) {
+                $errors[] = 'Invalid expiration month';
+            }
+            
+            if ($exp_year < $current_year || ($exp_year == $current_year && $exp_month < $current_month)) {
+                $errors[] = 'Card has expired';
+            }
         }
+        
+        // Validate required fields
+        $required_fields = array('first_name', 'last_name', 'address1', 'city', 'state', 'zip');
+        foreach ($required_fields as $field) {
+            if (!isset($data[$field]) || empty(trim($data[$field]))) {
+                $errors[] = ucfirst(str_replace('_', ' ', $field)) . ' is required';
+            }
+        }
+        
+        return $errors;
     }
     
     private function create_transactions_table() {
@@ -1238,10 +1187,16 @@ class NMI_Payment_Gateway {
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql);
     }
+
+    public function remove_custom_fields_table() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'nmi_custom_fields';
+        $wpdb->query("DROP TABLE IF EXISTS $table_name");
+    }
     
     public function activate() {
         $this->create_transactions_table();
-        $this->create_custom_fields_table();
+        // $this->remove_custom_fields_table(); //temporary removal of custom fields table
     }
     
     public function deactivate() {
