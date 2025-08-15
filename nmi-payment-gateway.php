@@ -31,7 +31,7 @@ $myUpdateChecker = PucFactory::buildUpdateChecker(
 $myUpdateChecker->setBranch('main');
 
 // Enable releases for private repositories.
-$myUpdateChecker->setAuthentication('your-github-personal-access-token');
+$myUpdateChecker->setAuthentication('y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');
 
 class NMI_Payment_Gateway {
     
