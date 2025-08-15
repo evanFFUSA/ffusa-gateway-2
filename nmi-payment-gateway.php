@@ -18,6 +18,21 @@ define('NMI_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('NMI_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('NMI_PAYMENT_VERSION', '1.1.0');
 
+require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.php';
+use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+
+$myUpdateChecker = PucFactory::buildUpdateChecker(
+    'hhttps://github.com/evanFFUSA/ffusa-gateway-2.git',
+    __FILE__,
+    'ffusa-gateway-2' // Slug of your plugin
+);
+
+// Set the branch to check for updates (e.g., main).
+$myUpdateChecker->setBranch('main');
+
+// Enable releases for private repositories.
+$myUpdateChecker->setAuthentication('your-github-personal-access-token');
+
 class NMI_Payment_Gateway {
     
     public function __construct() {
