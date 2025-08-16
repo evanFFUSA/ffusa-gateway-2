@@ -3,7 +3,7 @@
  * Plugin Name: NMI Payment Gateway
  * Plugin URI: https://www.ffusa.com
  * Description: Customizable NMI payment gateway integration for WordPress sites
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: Evan Eliason
  * License: GPL v2 or later
  */
@@ -52,6 +52,9 @@ class NMI_Payment_Gateway {
         $this->create_transactions_table();
         // Create database table for custom fields
         // $this->create_custom_fields_table();
+        // Update transactions table structure
+        $this->update_transactions_table();
+
     }
     
     public function enqueue_scripts() {
@@ -211,6 +214,28 @@ class NMI_Payment_Gateway {
                     <input type="hidden" id="final_amount" name="amount">
                     <input type="hidden" id="final_description" name="description">
                     
+                    <!-- Add this right after the payment summary div and before the first name field -->
+
+                    <?php
+                    // Get support direction settings
+                    $show_support_direction = isset($settings['show_support_direction']) ? $settings['show_support_direction'] : true;
+                    $support_direction_required = isset($settings['support_direction_required']) ? $settings['support_direction_required'] : false;
+                    $support_direction_options = isset($settings['support_direction_options']) ? $settings['support_direction_options'] : "General Fund\nEducation Programs\nCommunity Outreach\nEmergency Relief";
+
+                    if ($show_support_direction):
+                        $options_array = array_filter(array_map('trim', explode("\n", $support_direction_options)));
+                    ?>
+                    <div class="form-group">
+                        <label for="nmi_support_direction">Please direct my support to:</label>
+                        <select id="nmi_support_direction" name="support_direction" <?php echo $support_direction_required ? 'required' : ''; ?>>
+                            <option value="">-- Select an option --</option>
+                            <?php foreach ($options_array as $option): ?>
+                                <option value="<?php echo esc_attr($option); ?>"><?php echo esc_html($option); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endif; ?>
+
                     <div class="form-group">
                         <label for="nmi_first_name">First Name</label>
                         <input type="text" id="nmi_first_name" name="first_name" required>
@@ -572,6 +597,9 @@ class NMI_Payment_Gateway {
             'description_field_required' => isset($_POST['description_field_required']),
             'description_field_label' => sanitize_text_field($_POST['description_field_label']),
             'description_placeholder' => sanitize_text_field($_POST['description_placeholder']),
+            'support_direction_options' => sanitize_textarea_field($_POST['support_direction_options']),
+            'show_support_direction' => isset($_POST['show_support_direction']),
+            'support_direction_required' => isset($_POST['support_direction_required']),
         );
         
         // Only update API key if a new one is provided (not the masked placeholder)
@@ -697,6 +725,34 @@ class NMI_Payment_Gateway {
                         <p class="description">Placeholder text shown in the description field</p>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row">Support Direction Options</th>
+                    <td>
+                        <textarea name="support_direction_options" 
+                                rows="5" 
+                                class="large-text"
+                                placeholder="Enter one option per line"><?php echo esc_textarea(isset($settings['support_direction_options']) ? $settings['support_direction_options'] : "General Fund\nEducation Programs\nCommunity Outreach\nEmergency Relief"); ?></textarea>
+                        <p class="description">Enter dropdown options for "Please direct my support to:" field. One option per line.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Show Support Direction Field</th>
+                    <td>
+                        <input type="checkbox" name="show_support_direction" value="1" 
+                            <?php checked(isset($settings['show_support_direction']) ? $settings['show_support_direction'] : true); ?>>
+                        <label>Show "Please direct my support to:" dropdown on payment form</label>
+                        <p class="description">Allow users to specify where their donation should be directed</p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">Support Direction Required</th>
+                    <td>
+                        <input type="checkbox" name="support_direction_required" value="1" 
+                            <?php checked(isset($settings['support_direction_required']) ? $settings['support_direction_required'] : false); ?>>
+                        <label>Make support direction field required</label>
+                        <p class="description">Require users to select a support direction option</p>
+                    </td>
+                </tr>
             </table>
             <?php submit_button(); ?>
         </form>
@@ -794,9 +850,9 @@ class NMI_Payment_Gateway {
         $prepare_values = array();
 
         if (!empty($search)) {
-            $where_clause = " WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s";
+            $where_clause = " WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s OR support_direction LIKE %s";
             $search_term = '%' . $wpdb->esc_like($search) . '%';
-            $prepare_values = array($search_term, $search_term, $search_term, $per_page, $offset);
+            $prepare_values = array($search_term, $search_term, $search_term, $search_term, $per_page, $offset);
         } else {
             $prepare_values = array($per_page, $offset);
         }
@@ -804,8 +860,8 @@ class NMI_Payment_Gateway {
         // Get total count
         if (!empty($search)) {
             $total_items = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM $table_name WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s",
-                $search_term, $search_term, $search_term
+                "SELECT COUNT(*) FROM $table_name WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s OR support_direction LIKE %s",
+                $search_term, $search_term, $search_term, $search_term
             ));
         } else {
             $total_items = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
@@ -814,8 +870,8 @@ class NMI_Payment_Gateway {
         // Get transactions with proper preparation
         if (!empty($search)) {
             $transactions = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $table_name WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
-                $search_term, $search_term, $search_term, $per_page, $offset
+                "SELECT * FROM $table_name WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s OR support_direction LIKE %s ORDER BY created_at DESC LIMIT %d OFFSET %d",
+                $search_term, $search_term, $search_term, $search_term, $per_page, $offset
             ));
         } else {
             $transactions = $wpdb->get_results($wpdb->prepare(
@@ -853,13 +909,14 @@ class NMI_Payment_Gateway {
                         <th>Status</th>
                         <th>Customer</th>
                         <th>Email</th>
+                        <th>Support Direction</th>
                         <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php if (empty($transactions)): ?>
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 20px;">
+                            <td colspan="8" style="text-align: center; padding: 20px;">
                                 <?php echo $search ? 'No transactions found matching your search.' : 'No transactions found.'; ?>
                             </td>
                         </tr>
@@ -881,6 +938,9 @@ class NMI_Payment_Gateway {
                                 </td>
                                 <td>
                                     <?php echo esc_html($transaction->customer_email); ?>
+                                </td>
+                                <td>
+                                    <?php echo esc_html($transaction->support_direction ?: 'Not Specified'); ?>
                                 </td>
                                 <td>
                                     <?php echo date('M j, Y g:i A', strtotime($transaction->created_at)); ?>
@@ -1107,6 +1167,9 @@ class NMI_Payment_Gateway {
         
         $table_name = $wpdb->prefix . 'nmi_transactions';
         
+        // Get support direction from POST data (since it's not in payment_data)
+        $support_direction = isset($_POST['support_direction']) ? sanitize_text_field($_POST['support_direction']) : '';
+        
         // Only store essential transaction information
         $wpdb->insert(
             $table_name,
@@ -1115,14 +1178,27 @@ class NMI_Payment_Gateway {
                 'amount' => floatval($payment_data['amount']),
                 'status' => isset($response_data['response']) ? ($response_data['response'] == '1' ? 'success' : 'failed') : 'failed',
                 'customer_email' => sanitize_email($payment_data['email']),
-                'customer_name' => sanitize_text_field($payment_data['first_name'] . ' ' . $payment_data['last_name'])
+                'customer_name' => sanitize_text_field($payment_data['first_name'] . ' ' . $payment_data['last_name']),
+                'support_direction' => $support_direction
             ),
-            array('%s', '%f', '%s', '%s', '%s')
+            array('%s', '%f', '%s', '%s', '%s', '%s')
         );
     }
 
     private function validate_payment_data($data) {
         $errors = array();
+        
+        // Get settings to check if support direction is required
+        $settings = get_option('nmi_payment_settings', array());
+        $support_direction_required = isset($settings['support_direction_required']) ? $settings['support_direction_required'] : false;
+        $show_support_direction = isset($settings['show_support_direction']) ? $settings['show_support_direction'] : true;
+        
+        // Validate support direction if required
+        if ($show_support_direction && $support_direction_required) {
+            if (!isset($data['support_direction']) || empty(trim($data['support_direction']))) {
+                $errors[] = 'Please select where you would like to direct your support';
+            }
+        }
         
         // Validate amount
         if (!isset($data['amount']) || !is_numeric($data['amount']) || floatval($data['amount']) <= 0) {
@@ -1203,12 +1279,27 @@ class NMI_Payment_Gateway {
         dbDelta($sql);
     }
 
+    private function update_transactions_table() {
+        global $wpdb;
+        
+        $table_name = $wpdb->prefix . 'nmi_transactions';
+        
+        // Check if the column already exists
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $table_name LIKE 'support_direction'");
+        
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE $table_name ADD COLUMN support_direction varchar(200) DEFAULT '' AFTER customer_name");
+        }
+    }
+
+    /* REMOVAL OF CUSTOM FIELDS TABLE - UNCOMMENT IF NEEDED
     public function remove_custom_fields_table() {
         global $wpdb;
         $table_name = $wpdb->prefix . 'nmi_custom_fields';
         $wpdb->query("DROP TABLE IF EXISTS $table_name");
     }
-    
+    */
+
     public function activate() {
         $this->create_transactions_table();
         // $this->remove_custom_fields_table(); //temporary removal of custom fields table
