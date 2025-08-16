@@ -4,7 +4,7 @@
  * Plugin URI: https://www.ffusa.com
  * Description: Customizable NMI payment gateway integration for WordPress sites
  * Version: 1.1.1
- * Author: Evan Eliason
+ * Author: FFUSA
  * License: GPL v2 or later
  */
 
