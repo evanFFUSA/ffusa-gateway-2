@@ -3,7 +3,7 @@
  * Plugin Name: NMI Payment Gateway
  * Plugin URI: https://www.ffusa.com
  * Description: Customizable NMI payment gateway integration for WordPress sites
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: FFUSA
  * License: GPL v2 or later
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('NMI_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('NMI_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('NMI_PAYMENT_VERSION', '1.1.1');
+define('NMI_PAYMENT_VERSION', '1.1.2');
 
 require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
@@ -991,176 +991,6 @@ class NMI_Payment_Gateway {
         </style>
         <?php
     }
-    
-
-    /*Removing custom fields management for now
-
-    public function save_custom_fields() {
-        // Verify nonce
-        if (!wp_verify_nonce($_POST['nmi_nonce'], 'nmi_payment_nonce')) {
-            wp_die('Security check failed');
-        }
-        
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'nmi_custom_fields';
-        
-        // Generate unique session key using WordPress transients
-        $session_key = 'nmi_session_' . wp_generate_uuid4();
-        
-        // Get custom fields (exclude standard fields)
-        $standard_fields = array('action', 'nmi_nonce', '_wp_http_referer', 'amount', 'description');
-        $custom_fields = array();
-        
-        foreach ($_POST as $key => $value) {
-            if (!in_array($key, $standard_fields) && strpos($key, 'custom_') === 0) {
-                $custom_fields[$key] = sanitize_text_field($value);
-            }
-        }
-        
-        // Save custom fields to database
-        foreach ($custom_fields as $field_name => $field_value) {
-            $wpdb->insert(
-                $table_name,
-                array(
-                    'session_id' => $session_key,
-                    'field_name' => sanitize_text_field($field_name),
-                    'field_value' => sanitize_text_field($field_value)
-                ),
-                array('%s', '%s', '%s')
-            );
-        }
-        
-        // Store session key in transient for later use
-        set_transient('nmi_session_' . get_current_user_id(), $session_key, HOUR_IN_SECONDS);
-        
-        wp_send_json_success(array(
-            'message' => 'Custom fields saved successfully',
-            'session_id' => $session_key
-        ));
-    }
-    
-    public function custom_fields_page() {
-        global $wpdb;
-        
-        $custom_fields_table = $wpdb->prefix . 'nmi_custom_fields';
-        $transactions_table = $wpdb->prefix . 'nmi_transactions';
-        
-        // Handle search and pagination
-        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
-        $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
-        $per_page = 20;
-        $offset = ($paged - 1) * $per_page;
-        
-        // Build query to get custom fields with basic transaction info
-        $where = '';
-        if (!empty($search)) {
-            $where = $wpdb->prepare(
-                " WHERE cf.field_name LIKE %s OR cf.field_value LIKE %s OR t.customer_email LIKE %s OR cf.transaction_id LIKE %s",
-                '%' . $wpdb->esc_like($search) . '%',
-                '%' . $wpdb->esc_like($search) . '%',
-                '%' . $wpdb->esc_like($search) . '%',
-                '%' . $wpdb->esc_like($search) . '%'
-            );
-        }
-        
-        // Get custom fields with basic transaction data
-        $custom_fields = $wpdb->get_results($wpdb->prepare(
-            "SELECT cf.*, t.customer_name, t.customer_email, t.amount, t.created_at as transaction_date
-            FROM $custom_fields_table cf
-            LEFT JOIN $transactions_table t ON cf.transaction_id = t.transaction_id
-            $where
-            ORDER BY cf.created_at DESC
-            LIMIT %d OFFSET %d",
-            $per_page,
-            $offset
-        ));
-        
-        // Get total count
-        $total_query = "SELECT COUNT(*) FROM $custom_fields_table cf LEFT JOIN $transactions_table t ON cf.transaction_id = t.transaction_id" . $where;
-        $total_items = $wpdb->get_var($total_query);
-        $total_pages = ceil($total_items / $per_page);
-        
-        // Rest of the method stays the same...
-        ?>
-        <div class="wrap">
-            <h1>NMI Custom Fields Data</h1>
-            
-            <!-- Search Form -->
-            <form method="get" style="margin-bottom: 20px;">
-                <input type="hidden" name="page" value="nmi-custom-fields">
-                <p class="search-box">
-                    <input type="search" name="s" value="<?php echo esc_attr($search); ?>" 
-                        placeholder="Search custom fields...">
-                    <input type="submit" class="button" value="Search">
-                    <?php if ($search): ?>
-                        <a href="<?php echo admin_url('tools.php?page=nmi-custom-fields'); ?>" class="button">Clear</a>
-                    <?php endif; ?>
-                </p>
-            </form>
-            
-            <!-- Custom Fields Table -->
-            <table class="wp-list-table widefat fixed striped">
-                <thead>
-                    <tr>
-                        <th>Field Name</th>
-                        <th>Field Value</th>
-                        <th>Transaction ID</th>
-                        <th>Customer</th>
-                        <th>Amount</th>
-                        <th>Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($custom_fields)): ?>
-                        <tr>
-                            <td colspan="6" style="text-align: center; padding: 20px;">
-                                <?php echo $search ? 'No custom fields found matching your search.' : 'No custom fields found.'; ?>
-                            </td>
-                        </tr>
-                    <?php else: ?>
-                        <?php foreach ($custom_fields as $field): ?>
-                            <tr>
-                                <td>
-                                    <strong><?php echo esc_html(str_replace('custom_', '', $field->field_name)); ?></strong>
-                                </td>
-                                <td><?php echo esc_html($field->field_value); ?></td>
-                                <td>
-                                    <?php if ($field->transaction_id): ?>
-                                        <code><?php echo esc_html($field->transaction_id); ?></code>
-                                    <?php else: ?>
-                                        <em>No transaction</em>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($field->customer_name): ?>
-                                        <strong><?php echo esc_html($field->customer_name); ?></strong><br>
-                                        <small><?php echo esc_html($field->customer_email); ?></small>
-                                    <?php else: ?>
-                                        <em>No customer data</em>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($field->amount): ?>
-                                        $<?php echo number_format($field->amount, 2); ?>
-                                    <?php else: ?>
-                                        <em>N/A</em>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php echo date('M j, Y g:i A', strtotime($field->created_at)); ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-            
-            <!-- Pagination code stays the same... -->
-            
-        </div>
-        <?php
-    }
-    */
 
     private function save_transaction($payment_data, $response_data) {
         global $wpdb;
