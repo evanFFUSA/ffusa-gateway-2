@@ -22,7 +22,7 @@ require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.p
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-    'hhttps://github.com/evanFFUSA/ffusa-gateway-2.git',
+    'https://github.com/evanFFUSA/ffusa-gateway-2/',
     __FILE__,
     'ffusa-gateway-2' // Slug of your plugin
 );
