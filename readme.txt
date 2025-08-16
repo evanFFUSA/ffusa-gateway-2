@@ -1,10 +1,10 @@
 === FFUSA - NMI Payment Gateway ===
-Contributors: yourcompany
+Contributors: FFUSA, Easy Edge Consulting
 Tags: payment, gateway, nmi, credit card
 Requires at least: 5.0
 Tested up to: 6.3
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,7 +17,6 @@ Complete FFUSA (NMI) payment gateway integration for WordPress websites provided
 **Features:**
 * Direct payment processing
 * Secure payment handling
-* Refund support
 * Sandbox mode for testing
 * Easy admin configuration
 
