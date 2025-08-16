@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('NMI_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('NMI_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('NMI_PAYMENT_VERSION', '1.1.0');
+define('NMI_PAYMENT_VERSION', '1.1.1');
 
 require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
