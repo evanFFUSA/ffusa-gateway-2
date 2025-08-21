@@ -22,16 +22,12 @@ require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.p
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://github.com/evanFFUSA/ffusa-gateway-2/',
+    'https://easyedge.co/my-plugin-updates/metadata.php', // 👈 your proxy URL
     __FILE__,
-    'ffusa-gateway-2' // Slug of your plugin
+    'ffusa-gateway-2' // Must match your plugin’s slug
 );
 
-// Set the branch to check for updates (e.g., main).
-$myUpdateChecker->setBranch('main');
 
-// Enable releases for private repositories.
-$myUpdateChecker->setAuthentication('y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');
 
 class NMI_Payment_Gateway {
     
@@ -108,10 +104,10 @@ class NMI_Payment_Gateway {
                     <div class="form-group">
                         <label>Select Amount</label>
                         <div class="amount-buttons">
-                            <button type="button" class="amount-btn" data-amount="10">$10</button>
-                            <button type="button" class="amount-btn" data-amount="25">$25</button>
                             <button type="button" class="amount-btn" data-amount="50">$50</button>
                             <button type="button" class="amount-btn" data-amount="100">$100</button>
+                            <button type="button" class="amount-btn" data-amount="250">$250</button>
+                            <button type="button" class="amount-btn" data-amount="400">$400</button>
                         </div>
                         <div class="other-amount-container">
                             <button type="button" id="other-amount-btn" class="other-amount-toggle">Other Amount</button>
@@ -130,10 +126,10 @@ class NMI_Payment_Gateway {
                     <div class="form-group">
                         <label>Select Recurring Amount</label>
                         <div class="amount-buttons recurring-amounts">
-                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="10">$10</button>
-                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="25">$25</button>
                             <button type="button" class="amount-btn recurring-amount-btn" data-amount="50">$50</button>
                             <button type="button" class="amount-btn recurring-amount-btn" data-amount="100">$100</button>
+                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="250">$250</button>
+                            <button type="button" class="amount-btn recurring-amount-btn" data-amount="400">$400</button>
                         </div>
                         <div class="other-amount-container">
                             <button type="button" id="recurring-other-amount-btn" class="other-amount-toggle">Other Amount</button>
