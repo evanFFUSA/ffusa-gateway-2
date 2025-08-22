@@ -22,7 +22,7 @@ require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.p
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
 
 $myUpdateChecker = PucFactory::buildUpdateChecker(
-    'https://easyedge.co/my-plugin-updates/metadata.php', // 👈 your proxy URL
+    'https://easyedge.co/ffusa-gateway-2-updates/metadata.php', // your proxy URL
     __FILE__,
     'ffusa-gateway-2' // Must match your plugin’s slug
 );
