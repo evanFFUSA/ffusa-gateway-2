@@ -4,7 +4,7 @@ Tags: payment, gateway, nmi, credit card
 Requires at least: 5.0
 Tested up to: 6.3
 Requires PHP: 7.4
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -39,6 +39,21 @@ Yes, all payment data is transmitted securely to NMI servers.
 
 == Changelog ==
 
+= 1.1.3 =
+* Color override for Button UI on payment form
+
+= 1.1.2 =
+* Remote update connection
+* Security fixes
+
+= 1.1.1 =
+* Bug fixes
+* Release of working version
+
 = 1.0.0 =
 * Initial release
+
+
+
+
 
