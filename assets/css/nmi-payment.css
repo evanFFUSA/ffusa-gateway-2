@@ -598,3 +598,189 @@
         margin-bottom: 0;
     }
 }
+
+/* =====================================================
+   THEME OVERRIDE SECTION - Elementor Compatibility
+   ===================================================== */
+
+/* Add these enhanced color overrides to your existing CSS file */
+
+/* More specific selectors to override Elementor themes */
+.nmi-payment-form-container .nmi-give-button,
+.nmi-payment-form-container .nmi-pay-button {
+    background-color: #28a745 !important;
+    color: white !important;
+    border-color: #28a745 !important;
+}
+
+.nmi-payment-form-container .nmi-give-button:hover,
+.nmi-payment-form-container .nmi-pay-button:hover {
+    background-color: #218838 !important;
+    color: white !important;
+    border-color: #218838 !important;
+}
+
+.nmi-payment-form-container .nmi-give-button:disabled,
+.nmi-payment-form-container .nmi-pay-button:disabled {
+    background-color: #ccc !important;
+    color: #666 !important;
+    border-color: #ccc !important;
+    cursor: not-allowed !important;
+}
+
+/* Back button overrides */
+.nmi-payment-form-container .nmi-back-button {
+    background-color: #6c757d !important;
+    color: white !important;
+    border-color: #6c757d !important;
+}
+
+.nmi-payment-form-container .nmi-back-button:hover {
+    background-color: #5a6268 !important;
+    color: white !important;
+    border-color: #5a6268 !important;
+}
+
+/* Amount buttons */
+.nmi-payment-form-container .amount-btn {
+    background-color: #f8f9fa !important;
+    color: #333 !important;
+    border-color: #e1e5e9 !important;
+}
+
+.nmi-payment-form-container .amount-btn:hover {
+    background-color: #e9ecef !important;
+    color: #333 !important;
+    border-color: #28a745 !important;
+}
+
+.nmi-payment-form-container .amount-btn.selected {
+    background-color: #28a745 !important;
+    color: white !important;
+    border-color: #28a745 !important;
+}
+
+/* Frequency buttons */
+.nmi-payment-form-container .frequency-btn {
+    background-color: #f8f9fa !important;
+    color: #333 !important;
+    border-color: #e1e5e9 !important;
+}
+
+.nmi-payment-form-container .frequency-btn:hover {
+    background-color: #e9ecef !important;
+    color: #333 !important;
+    border-color: #28a745 !important;
+}
+
+.nmi-payment-form-container .frequency-btn.selected {
+    background-color: #28a745 !important;
+    color: white !important;
+    border-color: #28a745 !important;
+}
+
+/* Payment type tabs */
+.nmi-payment-form-container .payment-type-tab {
+    background-color: #f8f9fa !important;
+    color: #666 !important;
+    border-color: #e1e5e9 !important;
+}
+
+.nmi-payment-form-container .payment-type-tab:hover {
+    background-color: #e9ecef !important;
+    color: #666 !important;
+}
+
+.nmi-payment-form-container .payment-type-tab.active {
+    background-color: #28a745 !important;
+    color: white !important;
+}
+
+/* Other amount toggle */
+.nmi-payment-form-container .other-amount-toggle {
+    background-color: #f8f9fa !important;
+    color: #333 !important;
+    border-color: #e1e5e9 !important;
+}
+
+.nmi-payment-form-container .other-amount-toggle:hover {
+    background-color: #e9ecef !important;
+    color: #333 !important;
+    border-color: #28a745 !important;
+}
+
+.nmi-payment-form-container .other-amount-toggle.active {
+    background-color: #28a745 !important;
+    color: white !important;
+    border-color: #28a745 !important;
+}
+
+/* Form inputs to prevent theme interference */
+.nmi-payment-form-container input[type="text"],
+.nmi-payment-form-container input[type="email"],
+.nmi-payment-form-container input[type="number"],
+.nmi-payment-form-container select {
+    background-color: white !important;
+    color: #333 !important;
+    border-color: #e1e5e9 !important;
+}
+
+.nmi-payment-form-container input[type="text"]:focus,
+.nmi-payment-form-container input[type="email"]:focus,
+.nmi-payment-form-container input[type="number"]:focus,
+.nmi-payment-form-container select:focus {
+    border-color: #007cba !important;
+    box-shadow: 0 0 0 3px rgba(0, 124, 186, 0.1) !important;
+    outline: none !important;
+}
+
+/* Error states */
+.nmi-payment-form-container input.error,
+.nmi-payment-form-container select.error {
+    border-color: #dc3232 !important;
+}
+
+/* Ultra-specific selectors for stubborn themes */
+div.nmi-payment-form-container button.nmi-give-button,
+div.nmi-payment-form-container button.nmi-pay-button,
+div.nmi-payment-form-container .nmi-payment-form button.nmi-pay-button {
+    background: #28a745 !important;
+    background-color: #28a745 !important;
+    color: #ffffff !important;
+    border: 2px solid #28a745 !important;
+    border-color: #28a745 !important;
+}
+
+div.nmi-payment-form-container button.nmi-give-button:hover,
+div.nmi-payment-form-container button.nmi-pay-button:hover,
+div.nmi-payment-form-container .nmi-payment-form button.nmi-pay-button:hover {
+    background: #218838 !important;
+    background-color: #218838 !important;
+    color: #ffffff !important;
+    border-color: #218838 !important;
+}
+
+/* Reset any potential CSS variables that might interfere */
+.nmi-payment-form-container {
+    --primary-color: #28a745;
+    --primary-hover-color: #218838;
+    --secondary-color: #6c757d;
+    --secondary-hover-color: #5a6268;
+    --light-bg: #f8f9fa;
+    --light-hover-bg: #e9ecef;
+    --border-color: #e1e5e9;
+    --text-color: #333;
+    --white: #ffffff;
+}
+
+/* Additional button reset to override any inherited styles */
+.nmi-payment-form-container button {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    text-decoration: none !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    box-shadow: none !important;
+    transition: all 0.3s ease !important;
+}
