@@ -383,33 +383,35 @@ jQuery(document).ready(function ($) {
             data: $form.serialize() + '&action=process_nmi_payment&payment_type=' + $('#payment_type').val() + '&selected_frequency=' + $('#selected_frequency').val() + '&selected_frequency_days=' + $('#selected_frequency_days').val(),
             success: function (response) {
                 if (response.success) {
-                    let successMessage = '<p><strong>Success!</strong> ' + response.data.message + '</p>';
-
-                    // Add transaction ID if available
-                    if (response.data.transaction_id) {
-                        successMessage += '<p>Transaction ID: ' + response.data.transaction_id + '</p>';
-                    }
-
-                    // Add subscription details if this is a recurring payment
-                    if (response.data.subscription_id) {
-                        successMessage += '<p>Subscription ID: ' + response.data.subscription_id + '</p>';
-                    }
-
-                    if (response.data.next_billing_date) {
-                        successMessage += '<p>Next billing date: ' + response.data.next_billing_date + '</p>';
-                    }
-
-                    $messages.addClass('success').html(successMessage);
+                    // Prepare transaction data for the popup
+                    const transactionData = {
+                        transaction_id: response.data.transaction_id || null,
+                        subscription_id: response.data.subscription_id || null,
+                        next_billing_date: response.data.next_billing_date || null,
+                        amount: response.data.amount || null,
+                        frequency: response.data.frequency || null
+                    };
+                    
+                    // Show the thank you popup with transaction details
+                    showThankYouPopup(transactionData);
+                    
+                    // Reset the form
                     $form[0].reset();
 
-                    // Reset to step 1 after successful payment
+                    // Auto-close popup and reset form after delay (optional)
                     setTimeout(function () {
-                        $('#step-2').hide();
-                        $('#step-1').show();
-                        $messages.empty();
-                        // Reset step 1 as well
-                        clearAllSelections();
-                    }, 5000); // Extended to 5 seconds for recurring payments
+                        // Only reset if popup is still showing
+                        if ($('#nmi-thank-you-overlay').hasClass('show')) {
+                            closeThankYouPopup();
+                            setTimeout(function() {
+                                $('#step-2').hide();
+                                $('#step-1').show();
+                                $messages.empty();
+                                clearAllSelections();
+                            }, 500);
+                        }
+                    }, 12000); // 12 seconds to read popup with transaction details
+                    
                 } else {
                     $messages.addClass('error').html(
                         '<p><strong>Error:</strong> ' + response.data + '</p>'
@@ -512,4 +514,95 @@ jQuery(document).ready(function ($) {
         return (sum % 10) === 0;
     }
 
+});
+
+// Function to show the thank you popup with transaction details
+function showThankYouPopup(transactionData = {}) {
+    const overlay = document.getElementById('nmi-thank-you-overlay');
+    const popup = overlay.querySelector('.nmi-thank-you-popup');
+    const detailsContainer = document.getElementById('nmi-thank-you-details');
+    const transactionIdDisplay = document.getElementById('transaction-id-display');
+    const subscriptionIdDisplay = document.getElementById('subscription-id-display');
+    const nextBillingDisplay = document.getElementById('next-billing-display');
+    
+    // Clear previous content
+    transactionIdDisplay.innerHTML = '';
+    subscriptionIdDisplay.innerHTML = '';
+    nextBillingDisplay.innerHTML = '';
+    
+    // Show transaction details if available
+    if (transactionData.transaction_id) {
+        transactionIdDisplay.innerHTML = `<strong>Transaction ID:</strong> ${transactionData.transaction_id}`;
+        detailsContainer.style.display = 'block';
+    }
+    
+    // Show subscription details for recurring payments
+    if (transactionData.subscription_id) {
+        subscriptionIdDisplay.innerHTML = `<strong>Subscription ID:</strong> ${transactionData.subscription_id}`;
+        subscriptionIdDisplay.style.display = 'block';
+    }
+    
+    if (transactionData.next_billing_date) {
+        nextBillingDisplay.innerHTML = `<strong>Next billing date:</strong> ${transactionData.next_billing_date}`;
+        nextBillingDisplay.style.display = 'block';
+    }
+    
+    // If no transaction details, hide the details container
+    if (!transactionData.transaction_id && !transactionData.subscription_id && !transactionData.next_billing_date) {
+        detailsContainer.style.display = 'none';
+    }
+    
+    // Add body class to prevent scrolling
+    document.body.classList.add('nmi-popup-open');
+    document.body.style.overflow = 'hidden';
+    
+    // Show overlay and popup
+    overlay.classList.add('show');
+    popup.classList.add('animate-in');
+    
+    // Force reflow to ensure proper positioning
+    overlay.offsetHeight;
+    
+    // Additional centering check after a brief delay
+    setTimeout(() => {
+        if (overlay.classList.contains('show')) {
+            // Force centering styles
+            overlay.style.display = 'flex';
+            overlay.style.justifyContent = 'center';
+            overlay.style.alignItems = 'center';
+        }
+    }, 10);
+}
+
+// Function to close the thank you popup
+function closeThankYouPopup() {
+    const overlay = document.getElementById('nmi-thank-you-overlay');
+    const popup = overlay.querySelector('.nmi-thank-you-popup');
+    
+    overlay.classList.remove('show');
+    popup.classList.remove('animate-in');
+    
+    // Restore body scroll and remove class
+    document.body.classList.remove('nmi-popup-open');
+    document.body.style.overflow = '';
+}
+
+// Close popup when clicking outside of it
+document.addEventListener('DOMContentLoaded', function() {
+    const overlay = document.getElementById('nmi-thank-you-overlay');
+    
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) {
+                closeThankYouPopup();
+            }
+        });
+        
+        // Close popup with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && overlay.classList.contains('show')) {
+                closeThankYouPopup();
+            }
+        });
+    }
 });

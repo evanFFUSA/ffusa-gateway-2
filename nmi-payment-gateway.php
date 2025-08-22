@@ -3,7 +3,7 @@
  * Plugin Name: NMI Payment Gateway
  * Plugin URI: https://www.ffusa.com
  * Description: Customizable NMI payment gateway integration for WordPress sites
- * Version: 1.1.3
+ * Version: 1.2.0
  * Author: FFUSA
  * License: GPL v2 or later
  */
@@ -316,8 +316,35 @@ class NMI_Payment_Gateway {
                     <div id="nmi-payment-messages"></div>
                 </form>
             </div>
+            <!-- Thank You Popup -->
+            <div id="nmi-thank-you-overlay" class="nmi-thank-you-overlay">
+                <div class="nmi-thank-you-popup">
+                    <button class="nmi-thank-you-x-close" onclick="closeThankYouPopup()">&times;</button>
+                    
+                    <h2 class="nmi-thank-you-title">Thank You!</h2>
+                    
+                    <p class="nmi-thank-you-subtitle">Your generosity just made a real difference.</p>
+                    
+                    <p class="nmi-thank-you-message">
+                        Because of you, we are able to keep moving our mission forward and help those who need it most. 
+                        Every gift, big or small, brings hope, support, and positive change. Thank you for believing in 
+                        our cause and for being part of our community. We could not do this without you.
+                    </p>
+                    
+                    <div id="nmi-thank-you-details" class="nmi-thank-you-details" style="display: none;">
+                        <p id="transaction-id-display"></p>
+                        <p id="subscription-id-display" style="display: none;"></p>
+                        <p id="next-billing-display" style="display: none;"></p>
+                    </div>
+                    
+                    <button class="nmi-thank-you-close" onclick="closeThankYouPopup()">Continue</button>
+                </div>
+            </div>
         </div>
+    
+        
         <?php
+
         return ob_get_clean();
     }
     
