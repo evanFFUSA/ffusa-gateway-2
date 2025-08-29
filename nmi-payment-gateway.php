@@ -314,6 +314,11 @@ class NMI_Payment_Gateway {
                     </div>
                     
                     <div id="nmi-payment-messages"></div>
+                    <!-- Honey pot -->
+                        <div style="position: absolute; left: -9999px; top: -9999px;">
+                            <input type="text" name="nmi_website" value="" tabindex="-1" autocomplete="off">
+                        </div>
+                        <input type="hidden" name="nmi_timestamp" value="<?php echo time(); ?>">
                 </form>
             </div>
             <!-- Thank You Popup -->
@@ -363,8 +368,23 @@ class NMI_Payment_Gateway {
 
         // Rate limiting based on IP address
         $user_ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        if (!$this->check_rate_limit($user_ip)) {
-            wp_send_json_error('Too many payment attempts. Please wait 15 minutes before trying again.');
+        
+        // Run enhanced validation first
+        $enhanced_errors = $this->enhanced_validation($_POST);
+        if (!empty($enhanced_errors)) {
+            wp_send_json_error($enhanced_errors[0]); // Return first error
+            return;
+        }
+        
+        // Check suspicious activity patterns
+        if (!$this->check_suspicious_activity($user_ip)) {
+            wp_send_json_error('Too many failed attempts. Please wait before trying again.');
+            return;
+        }
+        
+        // Enhanced rate limiting
+        if (!$this->enhanced_rate_limiting($user_ip)) {
+            wp_send_json_error('Too many payment attempts. Please wait before trying again.');
             return;
         }
         
@@ -590,6 +610,174 @@ class NMI_Payment_Gateway {
         set_transient($transient_key, $attempts + 1, $time_window);
         return true;
     }
+
+    private function enhanced_rate_limiting($identifier) {
+        // Multiple rate limit tiers
+        $limits = array(
+            'per_minute' => array('limit' => 3, 'window' => 60),
+            'per_hour' => array('limit' => 10, 'window' => 3600),
+            'per_day' => array('limit' => 20, 'window' => 86400)
+        );
+        
+        foreach ($limits as $tier => $config) {
+            $transient_key = 'nmi_limit_' . $tier . '_' . md5($identifier);
+            $attempts = get_transient($transient_key);
+            
+            if ($attempts === false) {
+                set_transient($transient_key, 1, $config['window']);
+            } else if ($attempts >= $config['limit']) {
+                return false; // Rate limit exceeded
+            } else {
+                set_transient($transient_key, $attempts + 1, $config['window']);
+            }
+        }
+        
+        return true;
+    }
+
+    // ADD this method for suspicious activity tracking
+    private function check_suspicious_activity($ip) {
+        $transient_key = 'nmi_suspicious_' . md5($ip);
+        $failed_attempts = get_transient($transient_key) ?: 0;
+        
+        // Progressive blocking: 5 failures = 1 hour, 10+ = 24 hours
+        if ($failed_attempts >= 10) {
+            set_transient('nmi_blocked_' . md5($ip), true, 86400); // 24 hour block
+            return false;
+        } else if ($failed_attempts >= 5) {
+            set_transient('nmi_blocked_' . md5($ip), true, 3600); // 1 hour block
+            return false;
+        }
+        
+        return true;
+    }
+
+    // ADD this method for logging failed attempts
+    private function record_failed_attempt($ip, $reason = '') {
+        $transient_key = 'nmi_suspicious_' . md5($ip);
+        $attempts = get_transient($transient_key) ?: 0;
+        set_transient($transient_key, $attempts + 1, 3600);
+        
+        // Log the attempt for review
+        error_log("NMI Gateway: Failed attempt from IP $ip - Reason: $reason - Total attempts: " . ($attempts + 1));
+    }
+
+    // ADD this method for enhanced validation
+    private function enhanced_validation($post_data) {
+        $errors = array();
+        $current_ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+
+        // TEMPORARY: Testing IP whitelist - REMOVE BEFORE PRODUCTION
+        
+        // Check if IP is blocked (skip for testing IPs)
+        if (!$is_testing_ip && get_transient('nmi_blocked_' . md5($current_ip))) {
+            $this->record_failed_attempt($current_ip, 'IP blocked');
+            return array('IP temporarily blocked due to suspicious activity');
+        }
+        
+        // Honeypot check (skip for testing IPs)
+        if (!$is_testing_ip && !empty($post_data['nmi_website'])) {
+            $this->record_failed_attempt($current_ip, 'Honeypot triggered');
+            return array('Security validation failed');
+        }
+        
+        // Time-based validation (reduced for testing IPs)
+        $timestamp = isset($post_data['nmi_timestamp']) ? intval($post_data['nmi_timestamp']) : 0;
+        $min_time = $is_testing_ip ? 2 : 5; // 2 seconds for testing, 5 for others
+        
+        if ($timestamp > 0 && (time() - $timestamp) < $min_time) {
+            $this->record_failed_attempt($current_ip, 'Form submitted too quickly');
+            return array('Please take time to review your information');
+        }
+        
+        // Card number pattern analysis (skip for testing IPs)
+        if (!$is_testing_ip && isset($post_data['ccnumber'])) {
+            $card_number = preg_replace('/\s+/', '', sanitize_text_field($post_data['ccnumber']));
+            if ($this->is_test_card_pattern($card_number)) {
+                $this->record_failed_attempt($current_ip, 'Test card pattern detected');
+                return array('Invalid card number');
+            }
+        }
+        
+        // Email validation (relaxed for testing IPs)
+        if (isset($post_data['email'])) {
+            $email = sanitize_email($post_data['email']);
+            // Skip suspicious email check for testing IPs
+            if (!$is_testing_ip && $this->is_suspicious_email($email)) {
+                $this->record_failed_attempt($current_ip, 'Suspicious email pattern');
+                return array('Invalid email address');
+            }
+        }
+        
+        // Log testing activity (optional)
+        if ($is_testing_ip) {
+            error_log("NMI Gateway: Testing activity from whitelisted IP: $current_ip");
+        }
+        
+        return $errors; // Return empty array if all validations pass
+    }
+
+    // ADD this method for test card detection
+    private function is_test_card_pattern($card_number) {
+        $test_patterns = array(
+            //'/^4111111111111111$/', // Common Visa test - allow this for my own teesting
+            '/^4000000000000002$/', // Common Visa test
+            '/^5555555555554444$/', // Common MasterCard test
+            // '/^4[0-9]{15}$/',       // Sequential/repeated Visa patterns
+            '/^([0-9])\1{15}$/',    // All same digits (16 digits)
+            '/^1234567890/',        // Sequential numbers
+            '/^0{13,}/',           // Leading zeros
+        );
+        
+        foreach ($test_patterns as $pattern) {
+            if (preg_match($pattern, $card_number)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    // ADD this method for suspicious email detection
+    private function is_suspicious_email($email) {
+        $suspicious_patterns = array(
+            '/test@/i',
+            '/fake@/i',
+            '/temp@/i',
+            '/@mailinator\./i',
+            '/@10minutemail\./i',
+            '/[0-9]{10,}@/i', // Long numeric usernames
+        );
+        
+        foreach ($suspicious_patterns as $pattern) {
+            if (preg_match($pattern, $email)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    // Delete transactions from potential auth testing
+            private function delete_small_transactions() {
+            global $wpdb;
+            
+            $table_name = $wpdb->prefix . 'nmi_transactions';
+            
+            // Delete transactions under $2.00
+            $deleted = $wpdb->query(
+                $wpdb->prepare(
+                    "DELETE FROM $table_name WHERE amount < %f",
+                    2.00
+                )
+            );
+            
+            if ($deleted !== false && $deleted > 0) {
+                error_log("NMI Gateway: Deleted $deleted transactions under $2.00");
+            }
+            
+            return $deleted;
+        }
     
     public function admin_menu() {
         add_options_page(
@@ -817,7 +1005,7 @@ class NMI_Payment_Gateway {
                 }
             }
         }
-        
+
         // Prevent form submission if trying to save the masked value
         document.querySelector('form').addEventListener('submit', function(e) {
             var input = document.getElementById('nmi_api_key');
@@ -1155,6 +1343,9 @@ class NMI_Payment_Gateway {
 
     public function activate() {
         $this->create_transactions_table();
+        //$this->create_security_log_table();
+        $this->update_transactions_table();
+        $this->delete_small_transactions(); // Clean up small transactions on activation
         // $this->remove_custom_fields_table(); //temporary removal of custom fields table
     }
     
