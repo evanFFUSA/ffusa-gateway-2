@@ -39,6 +39,10 @@ Yes, all payment data is transmitted securely to NMI servers.
 
 == Changelog ==
 
+= 1.2.1 =
+* Added auth testing protection 
+* Blocking of IP addresses that continually use the payment portal
+
 = 1.2.0 =
 * Added new Thank you message after the submission of payment
 * Fixed bugs relating to CSS
