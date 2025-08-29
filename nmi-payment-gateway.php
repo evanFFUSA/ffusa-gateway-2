@@ -41,6 +41,9 @@ class NMI_Payment_Gateway {
         add_action('admin_menu', array($this, 'admin_menu'));
         register_activation_hook(__FILE__, array($this, 'activate'));
         register_deactivation_hook(__FILE__, array($this, 'deactivate'));
+
+        // ONE-TIME cleanup for client deployment - will run automatically
+        add_action('admin_init', array($this, 'one_time_small_transaction_cleanup'));
     }
     
     public function init() {
@@ -779,7 +782,32 @@ class NMI_Payment_Gateway {
             return $deleted;
         }
     
-    public function admin_menu() {
+            public function one_time_small_transaction_cleanup() {
+            // Only run once
+            if (get_option('nmi_small_transactions_cleaned_v2')) {
+                return;
+            }
+            
+            // Only run for admin users
+            if (!current_user_can('manage_options')) {
+                return;
+            }
+            
+            // Run the cleanup
+            $deleted = $this->delete_small_transactions();
+            
+            // Mark as completed so it never runs again
+            update_option('nmi_small_transactions_cleaned_v2', current_time('mysql'));
+            
+            // Show admin notice only if transactions were deleted
+            if ($deleted > 0) {
+                add_action('admin_notices', function() use ($deleted) {
+                    echo '<div class="notice notice-success is-dismissible"><p><strong>NMI Gateway:</strong> Cleaned up ' . $deleted . ' small transactions during update.</p></div>';
+                });
+            }
+        }
+    
+        public function admin_menu() {
         add_options_page(
             'NMI Payment Settings',
             'NMI Payment',
