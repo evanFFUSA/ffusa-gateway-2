@@ -749,6 +749,7 @@ class NMI_Payment_Gateway {
             '/temp@/i',
             '/@mailinator\./i',
             '/@10minutemail\./i',
+            '/@example\./i',
             '/[0-9]{10,}@/i', // Long numeric usernames
         );
         
