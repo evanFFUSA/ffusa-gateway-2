@@ -3,7 +3,7 @@
  * Plugin Name: NMI Payment Gateway
  * Plugin URI: https://www.ffusa.com
  * Description: Customizable NMI payment gateway integration for WordPress sites
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: FFUSA
  * License: GPL v2 or later
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('NMI_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('NMI_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('NMI_PAYMENT_VERSION', '1.3.0');
+define('NMI_PAYMENT_VERSION', '1.3.1');
 
 require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
