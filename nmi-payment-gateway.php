@@ -3,7 +3,7 @@
  * Plugin Name: NMI Payment Gateway
  * Plugin URI: https://www.ffusa.com
  * Description: Customizable NMI payment gateway integration for WordPress sites
- * Version: 1.3.1
+ * Version: 1.3.2
  * Author: FFUSA
  * License: GPL v2 or later
  */
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('NMI_PAYMENT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('NMI_PAYMENT_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('NMI_PAYMENT_VERSION', '1.3.1');
+define('NMI_PAYMENT_VERSION', '1.3.2');
 
 require_once dirname(__FILE__) . '/plugin-update-checker/plugin-update-checker.php';
 use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
@@ -393,7 +393,7 @@ class NMI_Payment_Gateway {
         
         // Get NMI settings
         $settings = get_option('nmi_payment_settings', array());
-        $api_key = isset($settings['api_key']) ? $settings['api_key'] : '';
+        $api_key = isset($settings['api_key']) ? $this->decrypt_api_key($settings['api_key']) : '';
         $sandbox = isset($settings['sandbox']) ? $settings['sandbox'] : true;
         
         if (empty($api_key)) {
@@ -596,6 +596,54 @@ class NMI_Payment_Gateway {
         }
     }
     
+    // NMI PAYMENT GATEWAY PRIVATE FUNCTIONS
+        /**
+     * Encrypt API key for secure storage
+     */
+    private function encrypt_api_key($api_key) {
+        if (empty($api_key)) {
+            return '';
+        }
+        
+        // Use WordPress salt for encryption key
+        $key = hash('sha256', wp_salt('nonce') . 'nmi_api_key');
+        
+        // Generate random IV
+        $iv = openssl_random_pseudo_bytes(16);
+        
+        // Encrypt the API key
+        $encrypted = openssl_encrypt($api_key, 'AES-256-CBC', $key, 0, $iv);
+        
+        // Return base64 encoded IV + encrypted data
+        return base64_encode($iv . $encrypted);
+    }
+
+    /**
+     * Decrypt API key from storage
+     */
+    private function decrypt_api_key($encrypted_key) {
+        if (empty($encrypted_key)) {
+            return '';
+        }
+        
+        try {
+            // Decode the stored data
+            $data = base64_decode($encrypted_key);
+            
+            // Extract IV and encrypted data
+            $iv = substr($data, 0, 16);
+            $encrypted = substr($data, 16);
+            
+            // Use same key generation as encryption
+            $key = hash('sha256', wp_salt('nonce') . 'nmi_api_key');
+            
+            // Decrypt and return
+            return openssl_decrypt($encrypted, 'AES-256-CBC', $key, 0, $iv);
+        } catch (Exception $e) {
+            error_log('NMI Gateway: Failed to decrypt API key - ' . $e->getMessage());
+            return '';
+        }
+    }
 
     private function check_rate_limit($identifier, $max_attempts = 5, $time_window = 900) { // 15 minutes
         $transient_key = 'nmi_rate_limit_' . md5($identifier);
@@ -829,6 +877,16 @@ class NMI_Payment_Gateway {
     
     public function admin_page() {
     if (isset($_POST['submit'])) {
+        // Add nonce verification
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'nmi_settings_nonce')) {
+            wp_die('Security check failed. Please try again.');
+        }
+
+        // Add capability check
+        if (!current_user_can('manage_options')) {
+                wp_die('You do not have sufficient permissions to access this page.');
+        }
+
         $settings = array(
             'sandbox' => isset($_POST['sandbox']),
             'default_button_text' => sanitize_text_field($_POST['default_button_text']),
@@ -842,10 +900,10 @@ class NMI_Payment_Gateway {
             'support_direction_required' => isset($_POST['support_direction_required']),
         );
         
-        // Only update API key if a new one is provided (not the masked placeholder)
+        /// Only update API key if a new one is provided (not the masked placeholder)
         $api_key_input = sanitize_text_field($_POST['api_key']);
         if (!empty($api_key_input) && $api_key_input !== '••••••••••••••••••••') {
-            $settings['api_key'] = $api_key_input;
+            $settings['api_key'] = $this->encrypt_api_key($api_key_input); // Encrypt before storing
         } else {
             // Keep existing API key
             $existing_settings = get_option('nmi_payment_settings', array());
@@ -857,12 +915,13 @@ class NMI_Payment_Gateway {
     }
         
         $settings = get_option('nmi_payment_settings', array());
-        $api_key = isset($settings['api_key']) ? $settings['api_key'] : '';
+        $api_key = isset($settings['api_key']) ? $this->decrypt_api_key($settings['api_key']) : '';
         $api_key_display = !empty($api_key) ? '••••••••••••••••••••' : '';
         ?>
         <div class="wrap">
         <h1>NMI Payment Gateway Settings</h1>
         <form method="post">
+            <?php wp_nonce_field('nmi_settings_nonce'); ?>
             <table class="form-table">
                 <tr>
                     <th scope="row">API Key</th>
@@ -1085,16 +1144,12 @@ class NMI_Payment_Gateway {
         $per_page = 20;
         $offset = ($paged - 1) * $per_page;
         
-        /// Build query with proper escaping
+        // Build query with proper escaping
         $where_clause = '';
-        $prepare_values = array();
+        $search_term = '';
 
         if (!empty($search)) {
-            $where_clause = " WHERE customer_email LIKE %s OR customer_name LIKE %s OR transaction_id LIKE %s OR support_direction LIKE %s";
             $search_term = '%' . $wpdb->esc_like($search) . '%';
-            $prepare_values = array($search_term, $search_term, $search_term, $search_term, $per_page, $offset);
-        } else {
-            $prepare_values = array($per_page, $offset);
         }
 
         // Get total count
@@ -1104,7 +1159,7 @@ class NMI_Payment_Gateway {
                 $search_term, $search_term, $search_term, $search_term
             ));
         } else {
-            $total_items = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+            $total_items = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name"));
         }
 
         // Get transactions with proper preparation

@@ -4,7 +4,7 @@ Tags: payment, gateway, nmi, credit card
 Requires at least: 5.0
 Tested up to: 6.3
 Requires PHP: 7.4
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -38,6 +38,11 @@ Yes, you need an active NMI merchant account with API credentials.
 Yes, all payment data is transmitted securely to NMI servers.
 
 == Changelog ==
+
+= 1.3.2 =
+* Updated database search functions
+* Added additional encryption to the database
+* Nonce improved
 
 = 1.3.0 =
 * Additional auth testing awareness and protection
